@@ -1,19 +1,25 @@
-import { useRef, useState } from "react";
 import {
-  Mic,
-  Square,
-  BrainCircuit,
-  Check,
-  RotateCcw,
-  AlertCircle,
-  LogOut,
-} from "lucide-react";
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
+import RecordingPanel from "./components/RecordingPanel";
+import AnalysisProgress from "./components/AnalysisProgress";
+import TranscriptPanel from "./components/TranscriptPanel";
+import ContextPanel from "./components/ContextPanel";
+
+import HistoryPage from "./pages/HistoryPage";
+import HelpPage from "./pages/HelpPage";
 
 import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";
 
 import {
   getAccessToken,
+  getStoredUser,
   logout,
 } from "./api/authApi";
 
@@ -22,54 +28,91 @@ import "./App.css";
 const API_URL = "http://localhost:8080";
 
 function App() {
-  // =========================
-  // 로그인 / 회원가입
-  // =========================
+  // ========================================
+  // 인증
+  // ========================================
 
-  // 저장된 JWT가 있으면 로그인 상태로 시작
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    () => !!getAccessToken()
-  );
+  const [isLoggedIn, setIsLoggedIn] =
+    useState(() => !!getAccessToken());
 
-  // "login" 또는 "signup"
-  const [authPage, setAuthPage] = useState("login");
+  const [authPage, setAuthPage] =
+    useState("login");
 
-  // 로그인 성공
-  const handleLoginSuccess = () => {
+  const [currentUser, setCurrentUser] =
+    useState(() => getStoredUser());
+
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(
+      user || getStoredUser()
+    );
+
     setIsLoggedIn(true);
   };
 
-  // 로그아웃
   const handleLogout = () => {
-    // localStorage의 accessToken 삭제
     logout();
 
-    // 로그인 상태 해제
-    setIsLoggedIn(false);
-
-    // 로그인 화면으로 이동
-    setAuthPage("login");
-
-    // 혹시 녹음 중이었다면 마이크 종료
     stopMicrophone();
+
     setIsRecording(false);
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    setAuthPage("login");
+    setActiveMenu("record");
+
+    resetConversation();
   };
 
-  // =========================
-  // 화면 단계
-  //
-  // 0 = 녹음
-  // 1 = 분석
-  // 2 = 결과
-  // =========================
+  // ========================================
+  // 사이드바 메뉴
+  // ========================================
 
-  const [step, setStep] = useState(0);
+  const [activeMenu, setActiveMenu] =
+    useState("record");
+
+  const handleMenuChange = (menu) => {
+    setActiveMenu(menu);
+  };
+
+  // ========================================
+  // 녹음
+  // ========================================
 
   const [isRecording, setIsRecording] =
     useState(false);
 
-  const [status, setStatus] =
-    useState("녹음 준비");
+  const [elapsedTime, setElapsedTime] =
+    useState(0);
+
+  const mediaRecorderRef =
+    useRef(null);
+
+  const streamRef =
+    useRef(null);
+
+  const chunksRef =
+    useRef([]);
+
+  // ========================================
+  // 분석 상태
+  // ========================================
+
+  const [
+    analysisStatus,
+    setAnalysisStatus,
+  ] = useState("WAITING");
+
+  const [
+    analysisProgress,
+    setAnalysisProgress,
+  ] = useState(0);
+
+  const [analysisId, setAnalysisId] =
+    useState(null);
+
+  // ========================================
+  // 분석 결과
+  // ========================================
 
   const [transcript, setTranscript] =
     useState("");
@@ -88,49 +131,87 @@ function App() {
   const [error, setError] =
     useState("");
 
-  // =========================
-  // MediaRecorder 관련
-  // =========================
+  // ========================================
+  // 녹음 타이머
+  // ========================================
 
-  const mediaRecorderRef =
-    useRef(null);
+  useEffect(() => {
+    if (!isRecording) {
+      return;
+    }
 
-  const streamRef =
-    useRef(null);
+    const timer = setInterval(() => {
+      setElapsedTime(
+        (current) => current + 1
+      );
+    }, 1000);
 
-  const chunksRef =
-    useRef([]);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [isRecording]);
 
-  // =========================
+  // ========================================
+  // 컴포넌트 종료 시 마이크 정리
+  // ========================================
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current
+          .getTracks()
+          .forEach((track) => {
+            track.stop();
+          });
+      }
+    };
+  }, []);
+
+  // ========================================
   // 녹음 시작
-  // =========================
+  // ========================================
 
   const startRecording = async () => {
     try {
       setError("");
 
-      setTranscript("");
-      setContexts([]);
-      setAnnotations([]);
+      resetAnalysisResult();
 
       const stream =
         await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
         });
 
       streamRef.current = stream;
 
-      const mediaRecorder =
-        new MediaRecorder(stream);
+      let options = {};
+
+      if (
+        MediaRecorder.isTypeSupported(
+          "audio/webm;codecs=opus"
+        )
+      ) {
+        options = {
+          mimeType:
+            "audio/webm;codecs=opus",
+        };
+      }
+
+      const recorder =
+        new MediaRecorder(
+          stream,
+          options
+        );
 
       mediaRecorderRef.current =
-        mediaRecorder;
+        recorder;
 
       chunksRef.current = [];
 
-      // 녹음 데이터가 생길 때마다
-      // chunks 배열에 저장
-      mediaRecorder.ondataavailable = (
+      recorder.ondataavailable = (
         event
       ) => {
         if (event.data.size > 0) {
@@ -140,29 +221,31 @@ function App() {
         }
       };
 
-      // 녹음 종료
-      mediaRecorder.onstop =
-        async () => {
-          const blob =
-            new Blob(
-              chunksRef.current,
-              {
-                type:
-                  mediaRecorder.mimeType ||
-                  "audio/webm",
-              }
-            );
+      recorder.onstop = async () => {
+        const blob = new Blob(
+          chunksRef.current,
+          {
+            type:
+              recorder.mimeType ||
+              "audio/webm",
+          }
+        );
 
-          stopMicrophone();
+        stopMicrophone();
 
-          // 녹음 파일을 Spring 서버로 전송
-          await sendAudio(blob);
-        };
+        await sendAudio(blob);
+      };
 
-      mediaRecorder.start();
+      recorder.start();
 
+      setElapsedTime(0);
       setIsRecording(true);
-      setStatus("녹음 중");
+
+      setAnalysisStatus(
+        "RECORDING"
+      );
+
+      setAnalysisProgress(0);
     } catch (err) {
       console.error(err);
 
@@ -172,25 +255,23 @@ function App() {
     }
   };
 
-  // =========================
+  // ========================================
   // 녹음 종료
-  // =========================
+  // ========================================
 
   const stopRecording = () => {
+    const recorder =
+      mediaRecorderRef.current;
+
     if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !==
-        "inactive"
+      recorder &&
+      recorder.state !== "inactive"
     ) {
-      mediaRecorderRef.current.stop();
+      recorder.stop();
     }
 
     setIsRecording(false);
   };
-
-  // =========================
-  // 녹음 버튼
-  // =========================
 
   const handleRecordButton = () => {
     if (isRecording) {
@@ -200,9 +281,9 @@ function App() {
     }
   };
 
-  // =========================
-  // 마이크 종료
-  // =========================
+  // ========================================
+  // 마이크 정리
+  // ========================================
 
   const stopMicrophone = () => {
     if (!streamRef.current) {
@@ -218,27 +299,31 @@ function App() {
     streamRef.current = null;
   };
 
-  // =========================
-  // Spring 서버로 음성 전송
-  // =========================
+  // ========================================
+  // 음성 분석 요청
+  // ========================================
 
   const sendAudio = async (blob) => {
     try {
-      setStep(1);
-      setStatus("음성 업로드 중");
       setError("");
+
+      setAnalysisStatus(
+        "UPLOADING"
+      );
+
+      setAnalysisProgress(0);
+
+      const accessToken =
+        getAccessToken();
+
+      if (!accessToken) {
+        throw new Error(
+          "로그인이 필요합니다."
+        );
+      }
 
       const formData =
         new FormData();
-
-      /*
-        추후 Spring에서
-
-        @RequestParam("audio")
-        MultipartFile audio
-
-        형태로 받을 것을 가정
-      */
 
       formData.append(
         "audio",
@@ -246,41 +331,27 @@ function App() {
         "recording.webm"
       );
 
-      setStatus(
-        "STT 및 AI 분석 중"
+      const response = await fetch(
+        `${API_URL}/api/conversations/analyze`,
+        {
+          method: "POST",
+
+          headers: {
+            Authorization:
+              `Bearer ${accessToken}`,
+          },
+
+          body: formData,
+        }
       );
 
-      // 로그인할 때 저장된 JWT 가져오기
-      const accessToken =
-        getAccessToken();
-
-      const response =
-        await fetch(
-          `${API_URL}/api/conversations/analyze`,
-          {
-            method: "POST",
-
-            // 인증이 필요한 API이므로
-            // JWT를 Authorization 헤더로 전달
-            headers: accessToken
-              ? {
-                  Authorization:
-                    `Bearer ${accessToken}`,
-                }
-              : {},
-
-            body: formData,
-          }
-        );
-
-      // 인증 만료
       if (
         response.status === 401
       ) {
         logout();
 
+        setCurrentUser(null);
         setIsLoggedIn(false);
-        setAuthPage("login");
 
         throw new Error(
           "로그인이 만료되었습니다."
@@ -296,80 +367,277 @@ function App() {
       const data =
         await response.json();
 
-      console.log(
-        "백엔드 응답:",
+      if (data.analysisId) {
+        setAnalysisId(
+          data.analysisId
+        );
+
+        setAnalysisStatus(
+          data.status ||
+            "UPLOADING"
+        );
+
+        await pollAnalysisStatus(
+          data.analysisId
+        );
+
+        return;
+      }
+
+      applyFinalAnalysisResult(
         data
       );
-
-      /*
-        추후 예상 응답:
-
-        {
-          transcript: "...",
-
-          contexts: [
-            {
-              id: 1,
-              title: "...",
-              description: "...",
-              confidence: 0.78
-            }
-          ],
-
-          annotations: [
-            {
-              id: 1,
-              word: "...",
-              type: "...",
-              description: "..."
-            }
-          ]
-        }
-      */
-
-      setTranscript(
-        data.transcript || ""
-      );
-
-      setContexts(
-        data.contexts || []
-      );
-
-      setAnnotations(
-        data.annotations || []
-      );
-
-      setStatus("분석 완료");
-
-      setStep(2);
     } catch (err) {
-      console.error(err);
+      console.error(
+        "음성 분석 요청 실패:",
+        err
+      );
 
-      setStatus("분석 실패");
+      setAnalysisStatus(
+        "FAILED"
+      );
+
+      setAnalysisProgress(0);
 
       setError(
         err.message ===
           "로그인이 만료되었습니다."
           ? err.message
-          : "아직 음성 분석 API가 연결되지 않았거나 서버 요청에 실패했습니다."
+          : "아직 음성 분석 API가 연결되지 않았거나 분석 요청에 실패했습니다."
       );
-
-      setStep(0);
     }
   };
 
-  // =========================
-  // 새로운 대화
-  // =========================
+  // ========================================
+  // 분석 상태 polling
+  // ========================================
 
-  const reset = () => {
-    stopMicrophone();
+  const pollAnalysisStatus =
+    async (id) => {
+      const accessToken =
+        getAccessToken();
 
-    setStep(0);
+      while (true) {
+        const response =
+          await fetch(
+            `${API_URL}/api/conversations/${id}/status`,
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${accessToken}`,
+              },
+            }
+          );
 
-    setIsRecording(false);
+        if (!response.ok) {
+          throw new Error(
+            `상태 조회 실패: HTTP ${response.status}`
+          );
+        }
 
-    setStatus("녹음 준비");
+        const data =
+          await response.json();
+
+        setAnalysisStatus(
+          data.status ||
+            "ANALYZING_CONTEXT"
+        );
+
+        setAnalysisProgress(
+          Number(
+            data.progress ?? 0
+          )
+        );
+
+        if (
+          data.status ===
+          "COMPLETED"
+        ) {
+          if (
+            data.transcript ||
+            data.contexts ||
+            data.annotations
+          ) {
+            applyFinalAnalysisResult(
+              data
+            );
+
+            return;
+          }
+
+          await fetchAnalysisResult(
+            id
+          );
+
+          return;
+        }
+
+        if (
+          data.status ===
+          "FAILED"
+        ) {
+          throw new Error(
+            "AI 분석에 실패했습니다."
+          );
+        }
+
+        await sleep(1000);
+      }
+    };
+
+  // ========================================
+  // 최종 분석 결과 조회
+  // ========================================
+
+  const fetchAnalysisResult =
+    async (id) => {
+      const accessToken =
+        getAccessToken();
+
+      const response =
+        await fetch(
+          `${API_URL}/api/conversations/${id}/result`,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          `분석 결과 조회 실패: HTTP ${response.status}`
+        );
+      }
+
+      const data =
+        await response.json();
+
+      applyFinalAnalysisResult(
+        data
+      );
+    };
+
+  // ========================================
+  // 최종 분석 결과 적용
+  // ========================================
+
+  const applyFinalAnalysisResult =
+    (data) => {
+      setTranscript(
+        data.transcript || ""
+      );
+
+      setContexts(
+        Array.isArray(
+          data.contexts
+        )
+          ? data.contexts
+          : []
+      );
+
+      setAnnotations(
+        Array.isArray(
+          data.annotations
+        )
+          ? data.annotations
+          : []
+      );
+
+      setSelectedContextId(null);
+
+      setAnalysisStatus(
+        "COMPLETED"
+      );
+
+      setAnalysisProgress(100);
+    };
+
+  // ========================================
+  // 발언 수정
+  // ========================================
+
+  const handleTranscriptSave =
+    (updatedTranscript) => {
+      setTranscript(
+        updatedTranscript
+      );
+    };
+
+  // ========================================
+  // 맥락 선택
+  // ========================================
+
+  const handleSelectContext =
+    (contextId) => {
+      setSelectedContextId(
+        contextId
+      );
+    };
+
+  // ========================================
+  // 대화 기록 열기
+  // ========================================
+
+  const handleOpenConversation =
+    (conversation) => {
+      setTranscript(
+        conversation.transcript ||
+          ""
+      );
+
+      setContexts(
+        Array.isArray(
+          conversation.contexts
+        )
+          ? conversation.contexts
+          : []
+      );
+
+      setAnnotations(
+        Array.isArray(
+          conversation.annotations
+        )
+          ? conversation.annotations
+          : []
+      );
+
+      setSelectedContextId(
+        conversation.selectedContextId ??
+          null
+      );
+
+      setElapsedTime(
+        conversation.elapsedTime ??
+          0
+      );
+
+      setAnalysisId(null);
+
+      setAnalysisStatus(
+        "COMPLETED"
+      );
+
+      setAnalysisProgress(100);
+
+      setError("");
+
+      setActiveMenu("record");
+    };
+
+  // ========================================
+  // 분석 결과 초기화
+  // ========================================
+
+  const resetAnalysisResult = () => {
+    setAnalysisId(null);
+
+    setAnalysisStatus(
+      "WAITING"
+    );
+
+    setAnalysisProgress(0);
 
     setTranscript("");
 
@@ -378,518 +646,190 @@ function App() {
     setAnnotations([]);
 
     setSelectedContextId(null);
+  };
+
+  // ========================================
+  // 대화 전체 초기화
+  // ========================================
+
+  const resetConversation = () => {
+    stopMicrophone();
+
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current
+        .state !== "inactive"
+    ) {
+      mediaRecorderRef.current.stop();
+    }
+
+    setIsRecording(false);
+    setElapsedTime(0);
+
+    resetAnalysisResult();
 
     setError("");
   };
 
-  // =========================
-  // 로그인하지 않은 상태
-  // =========================
+  // ========================================
+  // 인증 화면
+  // ========================================
 
   if (!isLoggedIn) {
-    // 회원가입 화면
-    if (authPage === "signup") {
+    if (
+      authPage === "signup"
+    ) {
       return (
         <SignupPage
           onGoLogin={() =>
-            setAuthPage("login")
+            setAuthPage(
+              "login"
+            )
           }
         />
       );
     }
 
-    // 로그인 화면
     return (
       <LoginPage
         onLoginSuccess={
           handleLoginSuccess
         }
         onGoSignup={() =>
-          setAuthPage("signup")
+          setAuthPage(
+            "signup"
+          )
         }
       />
     );
   }
 
-  // =========================
-  // 로그인 완료 → 메인 화면
-  // =========================
+  // ========================================
+  // 메인 화면
+  // ========================================
 
   return (
-    <div className="app">
-      <header>
-        <div>
-          <p>ITDA</p>
+    <div className="dashboard-shell">
+      <Sidebar
+        activeMenu={activeMenu}
+        onMenuChange={
+          handleMenuChange
+        }
+        onLogout={
+          handleLogout
+        }
+      />
 
-          <h1>
-            정보 손실 없는
-            대화 도우미
-          </h1>
-        </div>
+      <div className="dashboard-main">
+        <Header
+          nickname={
+            currentUser?.nickname
+          }
+          email={
+            currentUser?.email
+          }
+          isRecording={
+            isRecording
+          }
+          onLogout={
+            handleLogout
+          }
+        />
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          <div className="status">
-            {status}
+        {error && (
+          <div className="dashboard-error">
+            {error}
           </div>
-
-          <button
-            type="button"
-            onClick={
-              handleLogout
-            }
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              border:
-                "1px solid #dedee8",
-              background: "#ffffff",
-              borderRadius: "10px",
-              padding:
-                "9px 14px",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontWeight: "600",
-            }}
-          >
-            <LogOut size={15} />
-
-            로그아웃
-          </button>
-        </div>
-      </header>
-
-      {/* =====================
-          진행 단계
-      ====================== */}
-
-      <div className="stepper">
-        <Step
-          number="1"
-          title="녹음"
-          active={step >= 0}
-        />
-
-        <div className="line" />
-
-        <Step
-          number="2"
-          title="AI 분석"
-          active={step >= 1}
-        />
-
-        <div className="line" />
-
-        <Step
-          number="3"
-          title="맥락 확인"
-          active={step >= 2}
-        />
-      </div>
-
-      {/* =====================
-          에러
-      ====================== */}
-
-      {error && (
-        <div className="error">
-          <AlertCircle
-            size={18}
-          />
-
-          {error}
-        </div>
-      )}
-
-      {/* =====================
-          메인
-      ====================== */}
-
-      <main>
-        {step === 0 && (
-          <RecordingScreen
-            isRecording={
-              isRecording
-            }
-            handleRecordButton={
-              handleRecordButton
-            }
-          />
         )}
 
-        {step === 1 && (
-          <LoadingScreen
-            status={status}
-          />
-        )}
+        <main className="dashboard-content">
+          {/* ==============================
+              대화 기록
+          ============================== */}
 
-        {step === 2 && (
-          <ResultScreen
-            transcript={
-              transcript
-            }
-            contexts={
-              contexts
-            }
-            annotations={
-              annotations
-            }
-            selectedContextId={
-              selectedContextId
-            }
-            setSelectedContextId={
-              setSelectedContextId
-            }
-            reset={reset}
-          />
-        )}
-      </main>
-    </div>
-  );
-}
+          {activeMenu ===
+          "history" ? (
+            <HistoryPage
+              onOpenConversation={
+                handleOpenConversation
+              }
+            />
+          ) : activeMenu ===
+            "help" ? (
+            /* ==============================
+                도움말
+            ============================== */
 
-// =========================
-// 진행 단계
-// =========================
+            <HelpPage />
+          ) : (
+            /* ==============================
+                녹음 / 분석 화면
+            ============================== */
 
-function Step({
-  number,
-  title,
-  active,
-}) {
-  return (
-    <div
-      className={
-        active
-          ? "step active"
-          : "step"
-      }
-    >
-      <span>{number}</span>
-
-      {title}
-    </div>
-  );
-}
-
-// =========================
-// 녹음 화면
-// =========================
-
-function RecordingScreen({
-  isRecording,
-  handleRecordButton,
-}) {
-  return (
-    <section className="card recording">
-      <div className="icon-box">
-        <Mic size={22} />
-      </div>
-
-      <h2>
-        대화를 녹음해주세요
-      </h2>
-
-      <p>
-        녹음이 끝나면 음성을
-        Spring 서버로 전송하여
-        STT와 AI 분석을
-        시작합니다.
-      </p>
-
-      <button
-        className={
-          isRecording
-            ? "record-button recording-button"
-            : "record-button"
-        }
-        onClick={
-          handleRecordButton
-        }
-      >
-        {isRecording ? (
-          <Square size={34} />
-        ) : (
-          <Mic size={38} />
-        )}
-      </button>
-
-      <h3>
-        {isRecording
-          ? "녹음 중입니다"
-          : "녹음 준비"}
-      </h3>
-
-      <p>
-        {isRecording
-          ? "버튼을 다시 누르면 녹음을 종료합니다."
-          : "마이크 버튼을 눌러 시작하세요."}
-      </p>
-
-      {isRecording && (
-        <div className="wave">
-          {[
-            20,
-            45,
-            32,
-            62,
-            30,
-            55,
-            75,
-            36,
-            50,
-            67,
-            29,
-            53,
-            72,
-            40,
-            58,
-          ].map(
-            (
-              height,
-              index
-            ) => (
-              <span
-                key={index}
-                style={{
-                  height,
-                }}
+            <div className="dashboard-grid">
+              <RecordingPanel
+                isRecording={
+                  isRecording
+                }
+                elapsedTime={
+                  elapsedTime
+                }
+                transcript={
+                  transcript
+                }
+                onRecordToggle={
+                  handleRecordButton
+                }
               />
-            )
+
+              <AnalysisProgress
+                progress={
+                  analysisProgress
+                }
+                status={
+                  analysisStatus
+                }
+              />
+
+              <TranscriptPanel
+                transcript={
+                  transcript
+                }
+                annotations={
+                  annotations
+                }
+                onTranscriptSave={
+                  handleTranscriptSave
+                }
+              />
+
+              <ContextPanel
+                contexts={
+                  contexts
+                }
+                selectedContextId={
+                  selectedContextId
+                }
+                onSelectContext={
+                  handleSelectContext
+                }
+              />
+            </div>
           )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// =========================
-// AI 분석 화면
-// =========================
-
-function LoadingScreen({
-  status,
-}) {
-  return (
-    <section className="card loading">
-      <div className="brain">
-        <BrainCircuit
-          size={42}
-        />
+        </main>
       </div>
-
-      <h2>
-        대화를 분석하고
-        있습니다
-      </h2>
-
-      <p>{status}</p>
-
-      <div className="loader" />
-
-      <div className="loading-steps">
-        <div>
-          <Check size={16} />
-
-          음성 녹음 완료
-        </div>
-
-        <div>
-          <BrainCircuit
-            size={16}
-          />
-
-          STT 및 맥락 분석
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// =========================
-// 분석 결과 화면
-// =========================
-
-function ResultScreen({
-  transcript,
-  contexts,
-  annotations,
-  selectedContextId,
-  setSelectedContextId,
-  reset,
-}) {
-  return (
-    <div className="result-layout">
-      <section className="card result-main">
-        <p className="label">
-          STT RESULT
-        </p>
-
-        <h2>
-          실제 발언 전문
-        </h2>
-
-        <div className="transcript">
-          {transcript ||
-            "백엔드에서 transcript가 전달되지 않았습니다."}
-        </div>
-
-        <div className="result-title">
-          <div>
-            <p className="label">
-              AI CONTEXT
-            </p>
-
-            <h2>
-              실제 의도와 가까운
-              맥락을 선택해주세요
-            </h2>
-          </div>
-        </div>
-
-        <div className="contexts">
-          {contexts.length ===
-          0 ? (
-            <p>
-              백엔드에서 맥락
-              후보가 전달되지
-              않았습니다.
-            </p>
-          ) : (
-            contexts.map(
-              (context) => (
-                <button
-                  key={
-                    context.id
-                  }
-                  className={
-                    selectedContextId ===
-                    context.id
-                      ? "context selected"
-                      : "context"
-                  }
-                  onClick={() =>
-                    setSelectedContextId(
-                      context.id
-                    )
-                  }
-                >
-                  <div>
-                    <strong>
-                      {
-                        context.title
-                      }
-                    </strong>
-
-                    <p>
-                      {
-                        context.description
-                      }
-                    </p>
-                  </div>
-
-                  <span>
-                    {formatConfidence(
-                      context
-                    )}
-                  </span>
-                </button>
-              )
-            )
-          )}
-        </div>
-      </section>
-
-      <aside>
-        <section className="card annotation-panel">
-          <p className="label">
-            ANNOTATIONS
-          </p>
-
-          <h2>
-            AI 정보 주석
-          </h2>
-
-          {annotations.length ===
-          0 ? (
-            <p>
-              생성된 주석이
-              없습니다.
-            </p>
-          ) : (
-            annotations.map(
-              (annotation) => (
-                <div
-                  className="annotation"
-                  key={
-                    annotation.id
-                  }
-                >
-                  <strong>
-                    {annotation.word ||
-                      annotation.text}
-                  </strong>
-
-                  <span>
-                    {
-                      annotation.type
-                    }
-                  </span>
-
-                  <p>
-                    {
-                      annotation.description
-                    }
-                  </p>
-                </div>
-              )
-            )
-          )}
-        </section>
-
-        <button
-          className="reset-button"
-          onClick={reset}
-        >
-          <RotateCcw
-            size={16}
-          />
-
-          새로운 대화
-        </button>
-      </aside>
     </div>
   );
 }
 
-// =========================
-// AI 신뢰도 표시
-// =========================
-
-function formatConfidence(
-  context
-) {
-  if (
-    context.confidence != null
-  ) {
-    return `${Math.round(
-      context.confidence * 100
-    )}%`;
-  }
-
-  if (
-    context.score != null
-  ) {
-    return `${context.score}%`;
-  }
-
-  return "-";
+function sleep(ms) {
+  return new Promise(
+    (resolve) =>
+      setTimeout(
+        resolve,
+        ms
+      )
+  );
 }
 
 export default App;
