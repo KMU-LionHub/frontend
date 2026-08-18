@@ -6,31 +6,100 @@ import {
   Check,
   RotateCcw,
   AlertCircle,
+  LogOut,
 } from "lucide-react";
+
+import LoginPage from "./components/LoginPage";
+import SignupPage from "./components/SignupPage";
+
+import {
+  getAccessToken,
+  logout,
+} from "./api/authApi";
+
 import "./App.css";
 
 const API_URL = "http://localhost:8080";
 
 function App() {
+  // =========================
+  // 로그인 / 회원가입
+  // =========================
+
+  // 저장된 JWT가 있으면 로그인 상태로 시작
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    () => !!getAccessToken()
+  );
+
+  // "login" 또는 "signup"
+  const [authPage, setAuthPage] = useState("login");
+
+  // 로그인 성공
+  const handleLoginSuccess = () => {
+    setIsLoggedIn(true);
+  };
+
+  // 로그아웃
+  const handleLogout = () => {
+    // localStorage의 accessToken 삭제
+    logout();
+
+    // 로그인 상태 해제
+    setIsLoggedIn(false);
+
+    // 로그인 화면으로 이동
+    setAuthPage("login");
+
+    // 혹시 녹음 중이었다면 마이크 종료
+    stopMicrophone();
+    setIsRecording(false);
+  };
+
+  // =========================
+  // 화면 단계
+  //
   // 0 = 녹음
   // 1 = 분석
   // 2 = 결과
+  // =========================
+
   const [step, setStep] = useState(0);
 
-  const [isRecording, setIsRecording] = useState(false);
-  const [status, setStatus] = useState("녹음 준비");
+  const [isRecording, setIsRecording] =
+    useState(false);
 
-  const [transcript, setTranscript] = useState("");
-  const [contexts, setContexts] = useState([]);
-  const [annotations, setAnnotations] = useState([]);
+  const [status, setStatus] =
+    useState("녹음 준비");
 
-  const [selectedContextId, setSelectedContextId] = useState(null);
+  const [transcript, setTranscript] =
+    useState("");
 
-  const [error, setError] = useState("");
+  const [contexts, setContexts] =
+    useState([]);
 
-  const mediaRecorderRef = useRef(null);
-  const streamRef = useRef(null);
-  const chunksRef = useRef([]);
+  const [annotations, setAnnotations] =
+    useState([]);
+
+  const [
+    selectedContextId,
+    setSelectedContextId,
+  ] = useState(null);
+
+  const [error, setError] =
+    useState("");
+
+  // =========================
+  // MediaRecorder 관련
+  // =========================
+
+  const mediaRecorderRef =
+    useRef(null);
+
+  const streamRef =
+    useRef(null);
+
+  const chunksRef =
+    useRef([]);
 
   // =========================
   // 녹음 시작
@@ -39,6 +108,7 @@ function App() {
   const startRecording = async () => {
     try {
       setError("");
+
       setTranscript("");
       setContexts([]);
       setAnnotations([]);
@@ -58,6 +128,8 @@ function App() {
 
       chunksRef.current = [];
 
+      // 녹음 데이터가 생길 때마다
+      // chunks 배열에 저장
       mediaRecorder.ondataavailable = (
         event
       ) => {
@@ -68,20 +140,24 @@ function App() {
         }
       };
 
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(
-          chunksRef.current,
-          {
-            type:
-              mediaRecorder.mimeType ||
-              "audio/webm",
-          }
-        );
+      // 녹음 종료
+      mediaRecorder.onstop =
+        async () => {
+          const blob =
+            new Blob(
+              chunksRef.current,
+              {
+                type:
+                  mediaRecorder.mimeType ||
+                  "audio/webm",
+              }
+            );
 
-        stopMicrophone();
+          stopMicrophone();
 
-        await sendAudio(blob);
-      };
+          // 녹음 파일을 Spring 서버로 전송
+          await sendAudio(blob);
+        };
 
       mediaRecorder.start();
 
@@ -112,6 +188,10 @@ function App() {
     setIsRecording(false);
   };
 
+  // =========================
+  // 녹음 버튼
+  // =========================
+
   const handleRecordButton = () => {
     if (isRecording) {
       stopRecording();
@@ -120,20 +200,26 @@ function App() {
     }
   };
 
+  // =========================
+  // 마이크 종료
+  // =========================
+
   const stopMicrophone = () => {
-    if (!streamRef.current) return;
+    if (!streamRef.current) {
+      return;
+    }
 
     streamRef.current
       .getTracks()
-      .forEach((track) =>
-        track.stop()
-      );
+      .forEach((track) => {
+        track.stop();
+      });
 
     streamRef.current = null;
   };
 
   // =========================
-  // Spring 서버 전송
+  // Spring 서버로 음성 전송
   // =========================
 
   const sendAudio = async (blob) => {
@@ -146,12 +232,12 @@ function App() {
         new FormData();
 
       /*
-        Spring에서
+        추후 Spring에서
 
         @RequestParam("audio")
+        MultipartFile audio
 
-        로 받을 것이기 때문에
-        반드시 이름을 audio로 맞춤.
+        형태로 받을 것을 가정
       */
 
       formData.append(
@@ -160,15 +246,46 @@ function App() {
         "recording.webm"
       );
 
-      setStatus("STT 및 AI 분석 중");
-
-      const response = await fetch(
-        `${API_URL}/api/conversations/analyze`,
-        {
-          method: "POST",
-          body: formData,
-        }
+      setStatus(
+        "STT 및 AI 분석 중"
       );
+
+      // 로그인할 때 저장된 JWT 가져오기
+      const accessToken =
+        getAccessToken();
+
+      const response =
+        await fetch(
+          `${API_URL}/api/conversations/analyze`,
+          {
+            method: "POST",
+
+            // 인증이 필요한 API이므로
+            // JWT를 Authorization 헤더로 전달
+            headers: accessToken
+              ? {
+                  Authorization:
+                    `Bearer ${accessToken}`,
+                }
+              : {},
+
+            body: formData,
+          }
+        );
+
+      // 인증 만료
+      if (
+        response.status === 401
+      ) {
+        logout();
+
+        setIsLoggedIn(false);
+        setAuthPage("login");
+
+        throw new Error(
+          "로그인이 만료되었습니다."
+        );
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -185,12 +302,28 @@ function App() {
       );
 
       /*
-        Spring 응답 형식:
+        추후 예상 응답:
 
         {
           transcript: "...",
-          contexts: [...],
-          annotations: [...]
+
+          contexts: [
+            {
+              id: 1,
+              title: "...",
+              description: "...",
+              confidence: 0.78
+            }
+          ],
+
+          annotations: [
+            {
+              id: 1,
+              word: "...",
+              type: "...",
+              description: "..."
+            }
+          ]
         }
       */
 
@@ -207,6 +340,7 @@ function App() {
       );
 
       setStatus("분석 완료");
+
       setStep(2);
     } catch (err) {
       console.error(err);
@@ -214,7 +348,10 @@ function App() {
       setStatus("분석 실패");
 
       setError(
-        "Spring 백엔드 서버에 연결하지 못했거나 분석 요청에 실패했습니다."
+        err.message ===
+          "로그인이 만료되었습니다."
+          ? err.message
+          : "아직 음성 분석 API가 연결되지 않았거나 서버 요청에 실패했습니다."
       );
 
       setStep(0);
@@ -222,18 +359,22 @@ function App() {
   };
 
   // =========================
-  // 처음부터 다시
+  // 새로운 대화
   // =========================
 
   const reset = () => {
     stopMicrophone();
 
     setStep(0);
+
     setIsRecording(false);
+
     setStatus("녹음 준비");
 
     setTranscript("");
+
     setContexts([]);
+
     setAnnotations([]);
 
     setSelectedContextId(null);
@@ -241,21 +382,92 @@ function App() {
     setError("");
   };
 
+  // =========================
+  // 로그인하지 않은 상태
+  // =========================
+
+  if (!isLoggedIn) {
+    // 회원가입 화면
+    if (authPage === "signup") {
+      return (
+        <SignupPage
+          onGoLogin={() =>
+            setAuthPage("login")
+          }
+        />
+      );
+    }
+
+    // 로그인 화면
+    return (
+      <LoginPage
+        onLoginSuccess={
+          handleLoginSuccess
+        }
+        onGoSignup={() =>
+          setAuthPage("signup")
+        }
+      />
+    );
+  }
+
+  // =========================
+  // 로그인 완료 → 메인 화면
+  // =========================
+
   return (
     <div className="app">
       <header>
         <div>
           <p>ITDA</p>
+
           <h1>
             정보 손실 없는
             대화 도우미
           </h1>
         </div>
 
-        <div className="status">
-          {status}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <div className="status">
+            {status}
+          </div>
+
+          <button
+            type="button"
+            onClick={
+              handleLogout
+            }
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              border:
+                "1px solid #dedee8",
+              background: "#ffffff",
+              borderRadius: "10px",
+              padding:
+                "9px 14px",
+              cursor: "pointer",
+              fontSize: "13px",
+              fontWeight: "600",
+            }}
+          >
+            <LogOut size={15} />
+
+            로그아웃
+          </button>
         </div>
       </header>
+
+      {/* =====================
+          진행 단계
+      ====================== */}
 
       <div className="stepper">
         <Step
@@ -281,12 +493,23 @@ function App() {
         />
       </div>
 
+      {/* =====================
+          에러
+      ====================== */}
+
       {error && (
         <div className="error">
-          <AlertCircle size={18} />
+          <AlertCircle
+            size={18}
+          />
+
           {error}
         </div>
       )}
+
+      {/* =====================
+          메인
+      ====================== */}
 
       <main>
         {step === 0 && (
@@ -331,6 +554,10 @@ function App() {
   );
 }
 
+// =========================
+// 진행 단계
+// =========================
+
 function Step({
   number,
   title,
@@ -345,10 +572,15 @@ function Step({
       }
     >
       <span>{number}</span>
+
       {title}
     </div>
   );
 }
+
+// =========================
+// 녹음 화면
+// =========================
 
 function RecordingScreen({
   isRecording,
@@ -367,7 +599,8 @@ function RecordingScreen({
       <p>
         녹음이 끝나면 음성을
         Spring 서버로 전송하여
-        STT와 AI 분석을 시작합니다.
+        STT와 AI 분석을
+        시작합니다.
       </p>
 
       <button
@@ -402,11 +635,26 @@ function RecordingScreen({
       {isRecording && (
         <div className="wave">
           {[
-            20, 45, 32, 62, 30,
-            55, 75, 36, 50, 67,
-            29, 53, 72, 40, 58,
+            20,
+            45,
+            32,
+            62,
+            30,
+            55,
+            75,
+            36,
+            50,
+            67,
+            29,
+            53,
+            72,
+            40,
+            58,
           ].map(
-            (height, index) => (
+            (
+              height,
+              index
+            ) => (
               <span
                 key={index}
                 style={{
@@ -421,6 +669,10 @@ function RecordingScreen({
   );
 }
 
+// =========================
+// AI 분석 화면
+// =========================
+
 function LoadingScreen({
   status,
 }) {
@@ -433,7 +685,8 @@ function LoadingScreen({
       </div>
 
       <h2>
-        대화를 분석하고 있습니다
+        대화를 분석하고
+        있습니다
       </h2>
 
       <p>{status}</p>
@@ -443,6 +696,7 @@ function LoadingScreen({
       <div className="loading-steps">
         <div>
           <Check size={16} />
+
           음성 녹음 완료
         </div>
 
@@ -450,12 +704,17 @@ function LoadingScreen({
           <BrainCircuit
             size={16}
           />
+
           STT 및 맥락 분석
         </div>
       </div>
     </section>
   );
 }
+
+// =========================
+// 분석 결과 화면
+// =========================
 
 function ResultScreen({
   transcript,
@@ -573,9 +832,8 @@ function ResultScreen({
                   }
                 >
                   <strong>
-                    {
-                      annotation.word
-                    }
+                    {annotation.word ||
+                      annotation.text}
                   </strong>
 
                   <span>
@@ -599,13 +857,20 @@ function ResultScreen({
           className="reset-button"
           onClick={reset}
         >
-          <RotateCcw size={16} />
+          <RotateCcw
+            size={16}
+          />
+
           새로운 대화
         </button>
       </aside>
     </div>
   );
 }
+
+// =========================
+// AI 신뢰도 표시
+// =========================
 
 function formatConfidence(
   context
