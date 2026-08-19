@@ -23,31 +23,160 @@ import {
   logout,
 } from "./api/authApi";
 
+import {
+  saveConversation,
+} from "./db/conversationDb";
+
 import "./App.css";
 
-const API_URL = "http://localhost:8080";
+const API_URL =
+  "http://localhost:8080";
+
+const CONTEXT_MODEL =
+  "GEMINI_3_7_FLASH";
+
+const CANDIDATE_COUNT = 3;
 
 function App() {
   // ========================================
   // 인증
   // ========================================
 
-  const [isLoggedIn, setIsLoggedIn] =
-    useState(() => !!getAccessToken());
+  const [
+    isLoggedIn,
+    setIsLoggedIn,
+  ] = useState(
+    () => !!getAccessToken()
+  );
 
-  const [authPage, setAuthPage] =
-    useState("login");
+  const [
+    authPage,
+    setAuthPage,
+  ] = useState("login");
 
-  const [currentUser, setCurrentUser] =
-    useState(() => getStoredUser());
+  const [
+    currentUser,
+    setCurrentUser,
+  ] = useState(
+    () => getStoredUser()
+  );
 
-  const handleLoginSuccess = (user) => {
+  // ========================================
+  // 사이드바
+  // ========================================
+
+  const [
+    activeMenu,
+    setActiveMenu,
+  ] = useState("record");
+
+  // ========================================
+  // 녹음
+  // ========================================
+
+  const [
+    isRecording,
+    setIsRecording,
+  ] = useState(false);
+
+  const [
+    elapsedTime,
+    setElapsedTime,
+  ] = useState(0);
+
+  const mediaRecorderRef =
+    useRef(null);
+
+  const streamRef =
+    useRef(null);
+
+  const chunksRef =
+    useRef([]);
+
+  // ========================================
+  // 백엔드 ID
+  // ========================================
+
+  const [
+    transcriptionId,
+    setTranscriptionId,
+  ] = useState(null);
+
+  const [
+    conversationId,
+    setConversationId,
+  ] = useState(null);
+
+  const [
+    utteranceId,
+    setUtteranceId,
+  ] = useState(null);
+
+  const [
+    contextAnalysisId,
+    setContextAnalysisId,
+  ] = useState(null);
+
+  // ========================================
+  // 분석 상태
+  // ========================================
+
+  const [
+    analysisStatus,
+    setAnalysisStatus,
+  ] = useState("WAITING");
+
+  const [
+    analysisProgress,
+    setAnalysisProgress,
+  ] = useState(0);
+
+  // ========================================
+  // 결과
+  // ========================================
+
+  const [
+    transcript,
+    setTranscript,
+  ] = useState("");
+
+  const [
+    contexts,
+    setContexts,
+  ] = useState([]);
+
+  const [
+    annotations,
+    setAnnotations,
+  ] = useState([]);
+
+  const [
+    selectedContextId,
+    setSelectedContextId,
+  ] = useState(null);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  // ========================================
+  // 로그인 성공
+  // ========================================
+
+  const handleLoginSuccess = (
+    user
+  ) => {
     setCurrentUser(
       user || getStoredUser()
     );
 
     setIsLoggedIn(true);
   };
+
+  // ========================================
+  // 로그아웃
+  // ========================================
 
   const handleLogout = () => {
     logout();
@@ -64,72 +193,14 @@ function App() {
   };
 
   // ========================================
-  // 사이드바 메뉴
+  // 메뉴 변경
   // ========================================
 
-  const [activeMenu, setActiveMenu] =
-    useState("record");
-
-  const handleMenuChange = (menu) => {
+  const handleMenuChange = (
+    menu
+  ) => {
     setActiveMenu(menu);
   };
-
-  // ========================================
-  // 녹음
-  // ========================================
-
-  const [isRecording, setIsRecording] =
-    useState(false);
-
-  const [elapsedTime, setElapsedTime] =
-    useState(0);
-
-  const mediaRecorderRef =
-    useRef(null);
-
-  const streamRef =
-    useRef(null);
-
-  const chunksRef =
-    useRef([]);
-
-  // ========================================
-  // 분석 상태
-  // ========================================
-
-  const [
-    analysisStatus,
-    setAnalysisStatus,
-  ] = useState("WAITING");
-
-  const [
-    analysisProgress,
-    setAnalysisProgress,
-  ] = useState(0);
-
-  const [analysisId, setAnalysisId] =
-    useState(null);
-
-  // ========================================
-  // 분석 결과
-  // ========================================
-
-  const [transcript, setTranscript] =
-    useState("");
-
-  const [contexts, setContexts] =
-    useState([]);
-
-  const [annotations, setAnnotations] =
-    useState([]);
-
-  const [
-    selectedContextId,
-    setSelectedContextId,
-  ] = useState(null);
-
-  const [error, setError] =
-    useState("");
 
   // ========================================
   // 녹음 타이머
@@ -140,11 +211,13 @@ function App() {
       return;
     }
 
-    const timer = setInterval(() => {
-      setElapsedTime(
-        (current) => current + 1
-      );
-    }, 1000);
+    const timer =
+      setInterval(() => {
+        setElapsedTime(
+          (current) =>
+            current + 1
+        );
+      }, 1000);
 
     return () => {
       clearInterval(timer);
@@ -152,17 +225,21 @@ function App() {
   }, [isRecording]);
 
   // ========================================
-  // 컴포넌트 종료 시 마이크 정리
+  // 종료 시 마이크 정리
   // ========================================
 
   useEffect(() => {
     return () => {
-      if (streamRef.current) {
+      if (
+        streamRef.current
+      ) {
         streamRef.current
           .getTracks()
-          .forEach((track) => {
-            track.stop();
-          });
+          .forEach(
+            (track) => {
+              track.stop();
+            }
+          );
       }
     };
   }, []);
@@ -171,89 +248,108 @@ function App() {
   // 녹음 시작
   // ========================================
 
-  const startRecording = async () => {
-    try {
-      setError("");
+  const startRecording =
+    async () => {
+      try {
+        setError("");
 
-      resetAnalysisResult();
+        resetAnalysisResult();
 
-      const stream =
-        await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
-        });
+        const stream =
+          await navigator.mediaDevices
+            .getUserMedia({
+              audio: {
+                echoCancellation:
+                  true,
+                noiseSuppression:
+                  true,
+              },
+            });
 
-      streamRef.current = stream;
+        streamRef.current =
+          stream;
 
-      let options = {};
+        let options = {};
 
-      if (
-        MediaRecorder.isTypeSupported(
-          "audio/webm;codecs=opus"
-        )
-      ) {
-        options = {
-          mimeType:
-            "audio/webm;codecs=opus",
-        };
-      }
-
-      const recorder =
-        new MediaRecorder(
-          stream,
-          options
-        );
-
-      mediaRecorderRef.current =
-        recorder;
-
-      chunksRef.current = [];
-
-      recorder.ondataavailable = (
-        event
-      ) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(
-            event.data
-          );
+        if (
+          MediaRecorder
+            .isTypeSupported(
+              "audio/webm;codecs=opus"
+            )
+        ) {
+          options = {
+            mimeType:
+              "audio/webm;codecs=opus",
+          };
         }
-      };
 
-      recorder.onstop = async () => {
-        const blob = new Blob(
-          chunksRef.current,
-          {
-            type:
-              recorder.mimeType ||
-              "audio/webm",
-          }
+        const recorder =
+          new MediaRecorder(
+            stream,
+            options
+          );
+
+        mediaRecorderRef.current =
+          recorder;
+
+        chunksRef.current = [];
+
+        recorder.ondataavailable =
+          (event) => {
+            if (
+              event.data.size >
+              0
+            ) {
+              chunksRef.current
+                .push(
+                  event.data
+                );
+            }
+          };
+
+        recorder.onstop =
+          async () => {
+            const blob =
+              new Blob(
+                chunksRef.current,
+                {
+                  type:
+                    recorder.mimeType ||
+                    "audio/webm",
+                }
+              );
+
+            stopMicrophone();
+
+            await processRecording(
+              blob
+            );
+          };
+
+        recorder.start();
+
+        setElapsedTime(0);
+
+        setIsRecording(true);
+
+        setAnalysisStatus(
+          "RECORDING"
         );
 
-        stopMicrophone();
+        setAnalysisProgress(
+          0
+        );
+      } catch (err) {
+        console.error(
+          "녹음 시작 실패:",
+          err
+        );
 
-        await sendAudio(blob);
-      };
-
-      recorder.start();
-
-      setElapsedTime(0);
-      setIsRecording(true);
-
-      setAnalysisStatus(
-        "RECORDING"
-      );
-
-      setAnalysisProgress(0);
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        "마이크를 사용할 수 없습니다. 브라우저 마이크 권한을 확인해주세요."
-      );
-    }
-  };
+        setError(
+          "마이크를 사용할 수 없습니다. 브라우저 마이크 권한을 확인해주세요."
+        );
+      }
+    };
 
   // ========================================
   // 녹음 종료
@@ -265,7 +361,8 @@ function App() {
 
     if (
       recorder &&
-      recorder.state !== "inactive"
+      recorder.state !==
+        "inactive"
     ) {
       recorder.stop();
     }
@@ -273,54 +370,299 @@ function App() {
     setIsRecording(false);
   };
 
-  const handleRecordButton = () => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  };
+  const handleRecordButton =
+    () => {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    };
 
   // ========================================
   // 마이크 정리
   // ========================================
 
-  const stopMicrophone = () => {
-    if (!streamRef.current) {
-      return;
-    }
+  const stopMicrophone =
+    () => {
+      if (
+        !streamRef.current
+      ) {
+        return;
+      }
 
-    streamRef.current
-      .getTracks()
-      .forEach((track) => {
-        track.stop();
-      });
+      streamRef.current
+        .getTracks()
+        .forEach(
+          (track) => {
+            track.stop();
+          }
+        );
 
-    streamRef.current = null;
-  };
+      streamRef.current =
+        null;
+    };
 
   // ========================================
-  // 음성 분석 요청
+  // 전체 분석 처리
   // ========================================
 
-  const sendAudio = async (blob) => {
-    try {
-      setError("");
+  const processRecording =
+    async (blob) => {
+      try {
+        setError("");
 
-      setAnalysisStatus(
-        "UPLOADING"
-      );
+        // 1. STT
+        setAnalysisStatus(
+          "UPLOADING"
+        );
 
-      setAnalysisProgress(0);
+        setAnalysisProgress(
+          20
+        );
 
-      const accessToken =
-        getAccessToken();
+        const transcription =
+          await createTranscription(
+            blob
+          );
 
-      if (!accessToken) {
-        throw new Error(
-          "로그인이 필요합니다."
+        const newTranscriptionId =
+          transcription.id;
+
+        if (
+          !newTranscriptionId
+        ) {
+          throw new Error(
+            "전사 ID를 받지 못했습니다."
+          );
+        }
+
+        setTranscriptionId(
+          newTranscriptionId
+        );
+
+        const newTranscript =
+          transcription.currentText ||
+          transcription.originalText ||
+          "";
+
+        setTranscript(
+          newTranscript
+        );
+
+        const newAnnotations =
+          Array.isArray(
+            transcription.words
+          )
+            ? transcription.words
+            : [];
+
+        setAnnotations(
+          newAnnotations
+        );
+
+        // 2. 대화 생성
+        setAnalysisStatus(
+          "CREATING_CONVERSATION"
+        );
+
+        setAnalysisProgress(
+          40
+        );
+
+        const conversation =
+          await createConversation();
+
+        const newConversationId =
+          conversation.id;
+
+        if (
+          !newConversationId
+        ) {
+          throw new Error(
+            "대화 ID를 받지 못했습니다."
+          );
+        }
+
+        setConversationId(
+          newConversationId
+        );
+
+        const selfParticipant =
+          findSelfParticipant(
+            conversation,
+            currentUser
+          );
+
+        if (
+          !selfParticipant?.id
+        ) {
+          throw new Error(
+            "현재 사용자의 대화 참여자 정보를 찾지 못했습니다."
+          );
+        }
+
+        // 3. 발언 연결
+        setAnalysisStatus(
+          "LINKING_UTTERANCE"
+        );
+
+        setAnalysisProgress(
+          60
+        );
+
+        const utterance =
+          await createUtterance({
+            conversationId:
+              newConversationId,
+
+            transcriptionId:
+              newTranscriptionId,
+
+            speakerParticipantId:
+              selfParticipant.id,
+          });
+
+        const newUtteranceId =
+          utterance.id;
+
+        if (
+          !newUtteranceId
+        ) {
+          throw new Error(
+            "발언 ID를 받지 못했습니다."
+          );
+        }
+
+        setUtteranceId(
+          newUtteranceId
+        );
+
+        // 4. AI 분석
+        setAnalysisStatus(
+          "ANALYZING_CONTEXT"
+        );
+
+        setAnalysisProgress(
+          80
+        );
+
+        const analysis =
+          await createContextAnalysis({
+            conversationId:
+              newConversationId,
+
+            utteranceId:
+              newUtteranceId,
+          });
+
+        console.log(
+          "AI ANALYSIS RESPONSE:",
+          analysis
+        );
+
+        const newAnalysisId =
+          analysis.id ??
+          null;
+
+        setContextAnalysisId(
+          newAnalysisId
+        );
+
+        const normalizedContexts =
+          normalizeContextCandidates(
+            analysis
+          );
+
+        console.log(
+          "NORMALIZED CONTEXTS:",
+          normalizedContexts
+        );
+
+        setContexts(
+          normalizedContexts
+        );
+
+        const alreadySelected =
+          normalizedContexts.find(
+            (context) =>
+              context.selected
+          );
+
+        const newSelectedContextId =
+          alreadySelected?.id ??
+          null;
+
+        setSelectedContextId(
+          newSelectedContextId
+        );
+
+        setAnalysisStatus(
+          "COMPLETED"
+        );
+
+        setAnalysisProgress(
+          100
+        );
+
+        // 5. 기록 자동 저장
+        await persistConversation({
+          conversationIdValue:
+            newConversationId,
+
+          transcriptionIdValue:
+            newTranscriptionId,
+
+          utteranceIdValue:
+            newUtteranceId,
+
+          contextAnalysisIdValue:
+            newAnalysisId,
+
+          transcriptValue:
+            newTranscript,
+
+          contextsValue:
+            normalizedContexts,
+
+          annotationsValue:
+            newAnnotations,
+
+          selectedContextIdValue:
+            newSelectedContextId,
+
+          elapsedTimeValue:
+            elapsedTime,
+        });
+      } catch (err) {
+        console.error(
+          "녹음 처리 실패:",
+          err
+        );
+
+        setAnalysisStatus(
+          "FAILED"
+        );
+
+        setAnalysisProgress(
+          0
+        );
+
+        setError(
+          err.message ||
+            "녹음 분석 처리에 실패했습니다."
         );
       }
+    };
+
+  // ========================================
+  // STT
+  // ========================================
+
+  const createTranscription =
+    async (blob) => {
+      const accessToken =
+        requireAccessToken();
 
       const formData =
         new FormData();
@@ -331,231 +673,259 @@ function App() {
         "recording.webm"
       );
 
-      const response = await fetch(
-        `${API_URL}/api/conversations/analyze`,
-        {
-          method: "POST",
-
-          headers: {
-            Authorization:
-              `Bearer ${accessToken}`,
-          },
-
-          body: formData,
-        }
-      );
-
-      if (
-        response.status === 401
-      ) {
-        logout();
-
-        setCurrentUser(null);
-        setIsLoggedIn(false);
-
-        throw new Error(
-          "로그인이 만료되었습니다."
-        );
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          `HTTP ${response.status}`
-        );
-      }
-
-      const data =
-        await response.json();
-
-      if (data.analysisId) {
-        setAnalysisId(
-          data.analysisId
-        );
-
-        setAnalysisStatus(
-          data.status ||
-            "UPLOADING"
-        );
-
-        await pollAnalysisStatus(
-          data.analysisId
-        );
-
-        return;
-      }
-
-      applyFinalAnalysisResult(
-        data
-      );
-    } catch (err) {
-      console.error(
-        "음성 분석 요청 실패:",
-        err
-      );
-
-      setAnalysisStatus(
-        "FAILED"
-      );
-
-      setAnalysisProgress(0);
-
-      setError(
-        err.message ===
-          "로그인이 만료되었습니다."
-          ? err.message
-          : "아직 음성 분석 API가 연결되지 않았거나 분석 요청에 실패했습니다."
-      );
-    }
-  };
-
-  // ========================================
-  // 분석 상태 polling
-  // ========================================
-
-  const pollAnalysisStatus =
-    async (id) => {
-      const accessToken =
-        getAccessToken();
-
-      while (true) {
-        const response =
-          await fetch(
-            `${API_URL}/api/conversations/${id}/status`,
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${accessToken}`,
-              },
-            }
-          );
-
-        if (!response.ok) {
-          throw new Error(
-            `상태 조회 실패: HTTP ${response.status}`
-          );
-        }
-
-        const data =
-          await response.json();
-
-        setAnalysisStatus(
-          data.status ||
-            "ANALYZING_CONTEXT"
-        );
-
-        setAnalysisProgress(
-          Number(
-            data.progress ?? 0
-          )
-        );
-
-        if (
-          data.status ===
-          "COMPLETED"
-        ) {
-          if (
-            data.transcript ||
-            data.contexts ||
-            data.annotations
-          ) {
-            applyFinalAnalysisResult(
-              data
-            );
-
-            return;
-          }
-
-          await fetchAnalysisResult(
-            id
-          );
-
-          return;
-        }
-
-        if (
-          data.status ===
-          "FAILED"
-        ) {
-          throw new Error(
-            "AI 분석에 실패했습니다."
-          );
-        }
-
-        await sleep(1000);
-      }
-    };
-
-  // ========================================
-  // 최종 분석 결과 조회
-  // ========================================
-
-  const fetchAnalysisResult =
-    async (id) => {
-      const accessToken =
-        getAccessToken();
-
       const response =
         await fetch(
-          `${API_URL}/api/conversations/${id}/result`,
+          `${API_URL}/api/stt/transcriptions`,
           {
+            method:
+              "POST",
+
             headers: {
               Authorization:
                 `Bearer ${accessToken}`,
             },
+
+            body:
+              formData,
           }
         );
 
-      if (!response.ok) {
-        throw new Error(
-          `분석 결과 조회 실패: HTTP ${response.status}`
+      return await handleApiResponse(
+        response,
+        "STT 요청에 실패했습니다."
+      );
+    };
+
+  // ========================================
+  // 대화 생성
+  // ========================================
+
+  const createConversation =
+    async () => {
+      const accessToken =
+        requireAccessToken();
+
+      const response =
+        await fetch(
+          `${API_URL}/api/conversations`,
+          {
+            method:
+              "POST",
+
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                title:
+                  "새 대화",
+
+                context:
+                  "",
+
+                participants:
+                  [],
+              }),
+          }
         );
+
+      return await handleApiResponse(
+        response,
+        "대화 생성에 실패했습니다."
+      );
+    };
+
+  // ========================================
+  // 발언 연결
+  // ========================================
+
+  const createUtterance =
+    async ({
+      conversationId,
+      transcriptionId,
+      speakerParticipantId,
+    }) => {
+      const accessToken =
+        requireAccessToken();
+
+      const response =
+        await fetch(
+          `${API_URL}/api/conversations/${conversationId}/utterances`,
+          {
+            method:
+              "POST",
+
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                transcriptionId,
+                speakerParticipantId,
+              }),
+          }
+        );
+
+      return await handleApiResponse(
+        response,
+        "발언 연결에 실패했습니다."
+      );
+    };
+
+  // ========================================
+  // AI 맥락 분석
+  // ========================================
+
+  const createContextAnalysis =
+    async ({
+      conversationId,
+      utteranceId,
+    }) => {
+      const accessToken =
+        requireAccessToken();
+
+      const response =
+        await fetch(
+          `${API_URL}/api/context-analyses`,
+          {
+            method:
+              "POST",
+
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                conversationId,
+                utteranceId,
+
+                candidateCount:
+                  CANDIDATE_COUNT,
+
+                model:
+                  CONTEXT_MODEL,
+              }),
+          }
+        );
+
+      return await handleApiResponse(
+        response,
+        "AI 맥락 분석에 실패했습니다."
+      );
+    };
+
+  // ========================================
+  // IndexedDB 기록 저장
+  // ========================================
+
+  const persistConversation =
+    async ({
+      conversationIdValue =
+        conversationId,
+
+      transcriptionIdValue =
+        transcriptionId,
+
+      utteranceIdValue =
+        utteranceId,
+
+      contextAnalysisIdValue =
+        contextAnalysisId,
+
+      transcriptValue =
+        transcript,
+
+      contextsValue =
+        contexts,
+
+      annotationsValue =
+        annotations,
+
+      selectedContextIdValue =
+        selectedContextId,
+
+      elapsedTimeValue =
+        elapsedTime,
+    } = {}) => {
+      if (
+        conversationIdValue ==
+        null
+      ) {
+        return;
       }
 
-      const data =
-        await response.json();
+      try {
+        await saveConversation({
+          id:
+            `conversation-${conversationIdValue}`,
 
-      applyFinalAnalysisResult(
-        data
-      );
+          conversationId:
+            conversationIdValue,
+
+          transcriptionId:
+            transcriptionIdValue,
+
+          utteranceId:
+            utteranceIdValue,
+
+          contextAnalysisId:
+            contextAnalysisIdValue,
+
+          transcript:
+            transcriptValue ||
+            "",
+
+          contexts:
+            Array.isArray(
+              contextsValue
+            )
+              ? contextsValue
+              : [],
+
+          annotations:
+            Array.isArray(
+              annotationsValue
+            )
+              ? annotationsValue
+              : [],
+
+          selectedContextId:
+            selectedContextIdValue ??
+            null,
+
+          elapsedTime:
+            elapsedTimeValue ??
+            0,
+
+          updatedAt:
+            new Date()
+              .toISOString(),
+        });
+      } catch (err) {
+        console.error(
+          "대화 기록 저장 실패:",
+          err
+        );
+      }
     };
 
   // ========================================
-  // 최종 분석 결과 적용
-  // ========================================
-
-  const applyFinalAnalysisResult =
-    (data) => {
-      setTranscript(
-        data.transcript || ""
-      );
-
-      setContexts(
-        Array.isArray(
-          data.contexts
-        )
-          ? data.contexts
-          : []
-      );
-
-      setAnnotations(
-        Array.isArray(
-          data.annotations
-        )
-          ? data.annotations
-          : []
-      );
-
-      setSelectedContextId(null);
-
-      setAnalysisStatus(
-        "COMPLETED"
-      );
-
-      setAnalysisProgress(100);
-    };
-
-  // ========================================
-  // 발언 수정
+  // 전사 수정
   // ========================================
 
   const handleTranscriptSave =
@@ -563,21 +933,326 @@ function App() {
       setTranscript(
         updatedTranscript
       );
+
+      persistConversation({
+        transcriptValue:
+          updatedTranscript,
+      });
     };
 
   // ========================================
-  // 맥락 선택
+  // 후보 선택
   // ========================================
 
   const handleSelectContext =
-    (contextId) => {
-      setSelectedContextId(
-        contextId
-      );
+    async (contextId) => {
+      try {
+        setError("");
+
+        const selectedContext =
+          contexts.find(
+            (context) =>
+              context.id ===
+              contextId
+          );
+
+        if (
+          !selectedContext
+        ) {
+          throw new Error(
+            "선택한 맥락 후보를 찾을 수 없습니다."
+          );
+        }
+
+        const {
+          analysisId,
+          ambiguityId,
+        } =
+          selectedContext;
+
+        const accessToken =
+          requireAccessToken();
+
+        const response =
+          await fetch(
+            `${API_URL}/api/context-analyses/${analysisId}/ambiguities/${ambiguityId}/selection`,
+            {
+              method:
+                "PUT",
+
+              headers: {
+                Authorization:
+                  `Bearer ${accessToken}`,
+
+                "Content-Type":
+                  "application/json",
+              },
+
+              body:
+                JSON.stringify({
+                  candidateId:
+                    contextId,
+                }),
+            }
+          );
+
+        await handleApiResponse(
+          response,
+          "맥락 후보 선택에 실패했습니다."
+        );
+
+        const updatedContexts =
+          contexts.map(
+            (context) => ({
+              ...context,
+
+              selected:
+                context.id ===
+                contextId,
+            })
+          );
+
+        setContexts(
+          updatedContexts
+        );
+
+        setSelectedContextId(
+          contextId
+        );
+
+        await persistConversation({
+          contextsValue:
+            updatedContexts,
+
+          selectedContextIdValue:
+            contextId,
+        });
+      } catch (err) {
+        console.error(
+          "맥락 선택 실패:",
+          err
+        );
+
+        setError(
+          err.message
+        );
+      }
     };
 
   // ========================================
-  // 대화 기록 열기
+  // 직접 수정
+  // ========================================
+
+  const handleEditContext =
+    async (
+      selectedContext,
+      text
+    ) => {
+      try {
+        setError("");
+
+        const {
+          analysisId,
+          ambiguityId,
+          id: candidateId,
+        } =
+          selectedContext;
+
+        const accessToken =
+          requireAccessToken();
+
+        const response =
+          await fetch(
+            `${API_URL}/api/context-analyses/${analysisId}/ambiguities/${ambiguityId}/selection`,
+            {
+              method:
+                "PATCH",
+
+              headers: {
+                Authorization:
+                  `Bearer ${accessToken}`,
+
+                "Content-Type":
+                  "application/json",
+              },
+
+              body:
+                JSON.stringify({
+                  text,
+                }),
+            }
+          );
+
+        await handleApiResponse(
+          response,
+          "맥락 직접 수정에 실패했습니다."
+        );
+
+        const updatedContexts =
+          contexts.map(
+            (context) =>
+              context.id ===
+              candidateId
+                ? {
+                    ...context,
+
+                    editedText:
+                      text,
+                  }
+                : context
+          );
+
+        setContexts(
+          updatedContexts
+        );
+
+        await persistConversation({
+          contextsValue:
+            updatedContexts,
+
+          selectedContextIdValue:
+            selectedContextId,
+        });
+      } catch (err) {
+        console.error(
+          "맥락 수정 실패:",
+          err
+        );
+
+        setError(
+          err.message
+        );
+
+        throw err;
+      }
+    };
+
+  // ========================================
+  // 최종 확정
+  //
+  // 중요:
+  // CANDIDATE 타입일 때는
+  // candidateId만 전송한다.
+  // ========================================
+
+  const handleResolveContext =
+    async (
+      selectedContext,
+      finalText
+    ) => {
+      try {
+        setError("");
+
+        const {
+          analysisId,
+          ambiguityId,
+          id: candidateId,
+        } =
+          selectedContext;
+
+        if (
+          analysisId == null ||
+          ambiguityId == null ||
+          candidateId == null
+        ) {
+          throw new Error(
+            "최종 확정에 필요한 맥락 정보가 없습니다."
+          );
+        }
+
+        const accessToken =
+          requireAccessToken();
+
+        const response =
+          await fetch(
+            `${API_URL}/api/context-analyses/${analysisId}/ambiguities/${ambiguityId}/resolution`,
+            {
+              method:
+                "PUT",
+
+              headers: {
+                Authorization:
+                  `Bearer ${accessToken}`,
+
+                "Content-Type":
+                  "application/json",
+              },
+
+              body:
+                JSON.stringify({
+                  type:
+                    "CANDIDATE",
+
+                  candidateId,
+                }),
+            }
+          );
+
+        const data =
+          await handleApiResponse(
+            response,
+            "맥락 최종 확정에 실패했습니다."
+          );
+
+        console.log(
+          "CONTEXT RESOLUTION RESPONSE:",
+          data
+        );
+
+        const updatedContexts =
+          contexts.map(
+            (context) =>
+              context.id ===
+              candidateId
+                ? {
+                    ...context,
+
+                    resolved:
+                      true,
+
+                    finalText:
+                      finalText ||
+                      context.editedText ||
+                      context.description ||
+                      "",
+                  }
+                : context
+          );
+
+        setContexts(
+          updatedContexts
+        );
+
+        setSelectedContextId(
+          candidateId
+        );
+
+        await persistConversation({
+          contextsValue:
+            updatedContexts,
+
+          selectedContextIdValue:
+            candidateId,
+        });
+
+        return data;
+      } catch (err) {
+        console.error(
+          "최종 확정 실패:",
+          err
+        );
+
+        setError(
+          err.message ||
+            "맥락 최종 확정에 실패했습니다."
+        );
+
+        throw err;
+      }
+    };
+
+  // ========================================
+  // 기록 다시 열기
   // ========================================
 
   const handleOpenConversation =
@@ -604,80 +1279,134 @@ function App() {
       );
 
       setSelectedContextId(
-        conversation.selectedContextId ??
+        conversation
+          .selectedContextId ??
           null
       );
 
       setElapsedTime(
-        conversation.elapsedTime ??
+        conversation
+          .elapsedTime ??
           0
       );
 
-      setAnalysisId(null);
+      setTranscriptionId(
+        conversation
+          .transcriptionId ??
+          null
+      );
+
+      setConversationId(
+        conversation
+          .conversationId ??
+          null
+      );
+
+      setUtteranceId(
+        conversation
+          .utteranceId ??
+          null
+      );
+
+      setContextAnalysisId(
+        conversation
+          .contextAnalysisId ??
+          null
+      );
 
       setAnalysisStatus(
         "COMPLETED"
       );
 
-      setAnalysisProgress(100);
+      setAnalysisProgress(
+        100
+      );
 
       setError("");
 
-      setActiveMenu("record");
+      setActiveMenu(
+        "record"
+      );
     };
 
   // ========================================
-  // 분석 결과 초기화
+  // 분석 초기화
   // ========================================
 
-  const resetAnalysisResult = () => {
-    setAnalysisId(null);
+  const resetAnalysisResult =
+    () => {
+      setTranscriptionId(
+        null
+      );
 
-    setAnalysisStatus(
-      "WAITING"
-    );
+      setConversationId(
+        null
+      );
 
-    setAnalysisProgress(0);
+      setUtteranceId(
+        null
+      );
 
-    setTranscript("");
+      setContextAnalysisId(
+        null
+      );
 
-    setContexts([]);
+      setAnalysisStatus(
+        "WAITING"
+      );
 
-    setAnnotations([]);
+      setAnalysisProgress(
+        0
+      );
 
-    setSelectedContextId(null);
-  };
+      setTranscript("");
 
-  // ========================================
-  // 대화 전체 초기화
-  // ========================================
+      setContexts([]);
 
-  const resetConversation = () => {
-    stopMicrophone();
+      setAnnotations([]);
 
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current
-        .state !== "inactive"
-    ) {
-      mediaRecorderRef.current.stop();
-    }
-
-    setIsRecording(false);
-    setElapsedTime(0);
-
-    resetAnalysisResult();
-
-    setError("");
-  };
+      setSelectedContextId(
+        null
+      );
+    };
 
   // ========================================
-  // 인증 화면
+  // 전체 초기화
+  // ========================================
+
+  const resetConversation =
+    () => {
+      stopMicrophone();
+
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef
+          .current.state !==
+          "inactive"
+      ) {
+        mediaRecorderRef.current
+          .stop();
+      }
+
+      setIsRecording(
+        false
+      );
+
+      setElapsedTime(0);
+
+      resetAnalysisResult();
+
+      setError("");
+    };
+
+  // ========================================
+  // 로그인 전
   // ========================================
 
   if (!isLoggedIn) {
     if (
-      authPage === "signup"
+      authPage ===
+      "signup"
     ) {
       return (
         <SignupPage
@@ -705,13 +1434,15 @@ function App() {
   }
 
   // ========================================
-  // 메인 화면
+  // 메인 UI
   // ========================================
 
   return (
     <div className="dashboard-shell">
       <Sidebar
-        activeMenu={activeMenu}
+        activeMenu={
+          activeMenu
+        }
         onMenuChange={
           handleMenuChange
         }
@@ -743,10 +1474,6 @@ function App() {
         )}
 
         <main className="dashboard-content">
-          {/* ==============================
-              대화 기록
-          ============================== */}
-
           {activeMenu ===
           "history" ? (
             <HistoryPage
@@ -756,16 +1483,8 @@ function App() {
             />
           ) : activeMenu ===
             "help" ? (
-            /* ==============================
-                도움말
-            ============================== */
-
             <HelpPage />
           ) : (
-            /* ==============================
-                녹음 / 분석 화면
-            ============================== */
-
             <div className="dashboard-grid">
               <RecordingPanel
                 isRecording={
@@ -813,6 +1532,12 @@ function App() {
                 onSelectContext={
                   handleSelectContext
                 }
+                onEditContext={
+                  handleEditContext
+                }
+                onResolveContext={
+                  handleResolveContext
+                }
               />
             </div>
           )}
@@ -822,14 +1547,263 @@ function App() {
   );
 }
 
-function sleep(ms) {
-  return new Promise(
-    (resolve) =>
-      setTimeout(
-        resolve,
-        ms
+// ========================================
+// 토큰
+// ========================================
+
+function requireAccessToken() {
+  const token =
+    getAccessToken();
+
+  if (!token) {
+    throw new Error(
+      "로그인이 필요합니다."
+    );
+  }
+
+  return token;
+}
+
+// ========================================
+// API 응답 처리
+// ========================================
+
+async function handleApiResponse(
+  response,
+  fallbackMessage
+) {
+  if (
+    response.status ===
+    401
+  ) {
+    logout();
+
+    throw new Error(
+      "로그인이 만료되었습니다."
+    );
+  }
+
+  const data =
+    await readResponseBody(
+      response
+    );
+
+  if (!response.ok) {
+    const errors =
+      Array.isArray(
+        data?.errors
       )
-  );
+        ? data.errors.join(
+            ", "
+          )
+        : "";
+
+    throw new Error(
+      data?.message ||
+        errors ||
+        `${fallbackMessage} HTTP ${response.status}`
+    );
+  }
+
+  return data;
+}
+
+// ========================================
+// SELF 찾기
+// ========================================
+
+function findSelfParticipant(
+  conversation,
+  currentUser
+) {
+  const participants =
+    Array.isArray(
+      conversation?.participants
+    )
+      ? conversation.participants
+      : [];
+
+  const self =
+    participants.find(
+      (participant) =>
+        participant?.type ===
+        "SELF"
+    );
+
+  if (self) {
+    return self;
+  }
+
+  if (
+    currentUser?.id !=
+    null
+  ) {
+    return (
+      participants.find(
+        (participant) =>
+          Number(
+            participant
+              ?.userId
+          ) ===
+          Number(
+            currentUser.id
+          )
+      ) || null
+    );
+  }
+
+  return null;
+}
+
+// ========================================
+// AI 응답 변환
+// ========================================
+
+function normalizeContextCandidates(
+  analysis
+) {
+  const normalized = [];
+
+  if (
+    Array.isArray(
+      analysis?.ambiguities
+    )
+  ) {
+    analysis.ambiguities
+      .forEach(
+        (ambiguity) => {
+          const candidates =
+            Array.isArray(
+              ambiguity
+                ?.candidates
+            )
+              ? ambiguity.candidates
+              : [];
+
+          candidates.forEach(
+            (candidate) => {
+              normalized.push(
+                normalizeCandidate(
+                  candidate,
+                  ambiguity,
+                  analysis
+                )
+              );
+            }
+          );
+        }
+      );
+  }
+
+  return normalized;
+}
+
+function normalizeCandidate(
+  candidate,
+  ambiguity,
+  analysis
+) {
+  const selection =
+    ambiguity?.selection;
+
+  return {
+    id:
+      candidate?.id,
+
+    title:
+      candidate
+        ?.inferredIntent ||
+      candidate
+        ?.interpretation ||
+      "맥락 후보",
+
+    description:
+      candidate
+        ?.interpretation ||
+      candidate
+        ?.rationale ||
+      "",
+
+    confidence:
+      candidate
+        ?.intentSimilarityScore ??
+      0,
+
+    rationale:
+      candidate
+        ?.rationale ||
+      "",
+
+    inferredIntent:
+      candidate
+        ?.inferredIntent ||
+      "",
+
+    interpretation:
+      candidate
+        ?.interpretation ||
+      "",
+
+    rank:
+      candidate?.rank ??
+      null,
+
+    ambiguityId:
+      ambiguity?.id ??
+      null,
+
+    analysisId:
+      analysis?.id ??
+      null,
+
+    selected:
+      candidate
+        ?.selected ===
+      true,
+
+    editedText:
+      selection?.edited
+        ? selection?.finalText ||
+          ""
+        : "",
+
+    finalText:
+      selection?.finalText ||
+      "",
+
+    resolved:
+      Boolean(
+        ambiguity?.resolution
+      ),
+  };
+}
+
+// ========================================
+// 응답 읽기
+// ========================================
+
+async function readResponseBody(
+  response
+) {
+  const contentType =
+    response.headers.get(
+      "content-type"
+    );
+
+  if (
+    contentType?.includes(
+      "application/json"
+    )
+  ) {
+    return await response.json();
+  }
+
+  const text =
+    await response.text();
+
+  return {
+    message: text,
+  };
 }
 
 export default App;

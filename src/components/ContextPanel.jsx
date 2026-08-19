@@ -2,26 +2,156 @@ import {
   BrainCircuit,
   Check,
   Sparkles,
+  CircleCheck,
+  Pencil,
+  Save,
+  CheckCircle2,
 } from "lucide-react";
+
+import {
+  useEffect,
+  useState,
+} from "react";
 
 function ContextPanel({
   contexts = [],
   selectedContextId = null,
   onSelectContext,
+  onEditContext,
+  onResolveContext,
+  analysisCompleted = false,
+  isAnalyzing = false,
 }) {
-  // confidence / score 기준으로 높은 순서 정렬
-  // 원본 contexts 배열은 건드리지 않도록 복사
-  const sortedContexts = [...contexts].sort(
+  const [editText, setEditText] =
+    useState("");
+
+  const [isEditing, setIsEditing] =
+    useState(false);
+
+  const [isSaving, setIsSaving] =
+    useState(false);
+
+  const [isResolving, setIsResolving] =
+    useState(false);
+
+  // ========================================
+  // 점수 높은 순으로 정렬
+  // ========================================
+
+  const sortedContexts = [
+    ...contexts,
+  ].sort(
     (a, b) =>
       getConfidence(b) -
       getConfidence(a)
   );
 
+  // ========================================
+  // 현재 선택한 후보
+  // ========================================
+
+  const selectedContext =
+    contexts.find(
+      (context) =>
+        context.id ===
+        selectedContextId
+    ) || null;
+
+  // ========================================
+  // 선택 후보가 바뀌면
+  // 편집창 내용 갱신
+  // ========================================
+
+  useEffect(() => {
+    if (!selectedContext) {
+      setEditText("");
+      setIsEditing(false);
+      return;
+    }
+
+    setEditText(
+      selectedContext.finalText ||
+        selectedContext.editedText ||
+        selectedContext.description ||
+        selectedContext.interpretation ||
+        ""
+    );
+  }, [selectedContext]);
+
+  // ========================================
+  // 직접 수정 저장
+  // ========================================
+
+  const handleSaveEdit =
+    async () => {
+      if (
+        !selectedContext ||
+        !onEditContext
+      ) {
+        return;
+      }
+
+      const trimmed =
+        editText.trim();
+
+      if (!trimmed) {
+        return;
+      }
+
+      try {
+        setIsSaving(true);
+
+        await onEditContext(
+          selectedContext,
+          trimmed
+        );
+
+        setIsEditing(false);
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+  // ========================================
+  // 최종 확정
+  // ========================================
+
+  const handleResolve =
+    async () => {
+      if (
+        !selectedContext ||
+        !onResolveContext
+      ) {
+        return;
+      }
+
+      const finalText =
+        editText.trim() ||
+        selectedContext.description ||
+        selectedContext.interpretation ||
+        "";
+
+      try {
+        setIsResolving(true);
+
+        await onResolveContext(
+          selectedContext,
+          finalText
+        );
+      } finally {
+        setIsResolving(false);
+      }
+    };
+
+  // ========================================
+  // 화면
+  // ========================================
+
   return (
     <section className="dashboard-card context-panel">
-      {/* =========================
-          상단 제목
-      ========================== */}
+      {/* ========================================
+          제목
+      ======================================== */}
 
       <div className="panel-heading-row">
         <div>
@@ -31,7 +161,9 @@ function ContextPanel({
               strokeWidth={1.8}
             />
 
-            <h2>AI 맥락 후보 분석</h2>
+            <h2>
+              AI 맥락 후보 분석
+            </h2>
           </div>
 
           <p>
@@ -41,35 +173,26 @@ function ContextPanel({
 
         {contexts.length > 0 && (
           <div className="context-count-badge">
-            <Sparkles size={14} />
+            <Sparkles
+              size={14}
+            />
 
             {contexts.length}개 후보
           </div>
         )}
       </div>
 
-      {/* =========================
-          맥락 후보
-      ========================== */}
+      {/* ========================================
+          후보 / 상태 영역
+      ======================================== */}
 
       <div className="context-list">
-        {sortedContexts.length === 0 ? (
-          <div className="context-empty">
-            <BrainCircuit
-              size={32}
-              strokeWidth={1.4}
-            />
+        {/* ========================================
+            중요:
+            후보가 있으면 무조건 후보부터 표시
+        ======================================== */}
 
-            <strong>
-              아직 분석된 맥락이 없습니다
-            </strong>
-
-            <p>
-              대화 분석이 완료되면 AI가 추론한
-              맥락 후보가 이곳에 표시됩니다.
-            </p>
-          </div>
-        ) : (
+        {sortedContexts.length > 0 ? (
           sortedContexts.map(
             (context, index) => {
               const isSelected =
@@ -77,7 +200,9 @@ function ContextPanel({
                 context.id;
 
               const confidence =
-                getConfidence(context);
+                getConfidence(
+                  context
+                );
 
               return (
                 <button
@@ -107,12 +232,14 @@ function ContextPanel({
                     {index + 1}
                   </div>
 
-                  {/* 내용 */}
+                  {/* 후보 내용 */}
 
                   <div className="context-candidate-content">
                     <div className="context-candidate-title-row">
                       <strong>
                         {context.title ||
+                          context.inferredIntent ||
+                          context.interpretation ||
                           `맥락 후보 ${
                             index + 1
                           }`}
@@ -123,15 +250,24 @@ function ContextPanel({
                           가장 유력
                         </span>
                       )}
+
+                      {context.resolved && (
+                        <span className="best-context-badge">
+                          확정
+                        </span>
+                      )}
                     </div>
 
                     <p>
-                      {context.description ||
+                      {context.editedText ||
+                        context.description ||
+                        context.interpretation ||
+                        context.rationale ||
                         context.content ||
                         "상세 설명이 없습니다."}
                     </p>
 
-                    {/* 확률 막대 */}
+                    {/* 확률 */}
 
                     <div className="context-confidence-area">
                       <div className="context-confidence-bar">
@@ -172,15 +308,78 @@ function ContextPanel({
               );
             }
           )
+        ) : isAnalyzing ? (
+          /* ========================================
+              분석 중
+          ======================================== */
+
+          <div className="context-empty">
+            <BrainCircuit
+              size={32}
+              strokeWidth={1.4}
+            />
+
+            <strong>
+              AI가 맥락을 분석하고 있습니다
+            </strong>
+
+            <p>
+              발언 속 모호한 표현과 가능한
+              의도를 확인하고 있습니다.
+            </p>
+          </div>
+        ) : analysisCompleted ? (
+          /* ========================================
+              분석 완료 + 후보 없음
+          ======================================== */
+
+          <div className="context-empty">
+            <CircleCheck
+              size={32}
+              strokeWidth={1.6}
+            />
+
+            <strong>
+              추가 확인이 필요한
+              모호한 표현이 없습니다
+            </strong>
+
+            <p>
+              현재 발언은 문맥만으로 충분히
+              해석할 수 있어 별도의 맥락
+              후보가 생성되지 않았습니다.
+            </p>
+          </div>
+        ) : (
+          /* ========================================
+              아직 분석 전
+          ======================================== */
+
+          <div className="context-empty">
+            <BrainCircuit
+              size={32}
+              strokeWidth={1.4}
+            />
+
+            <strong>
+              아직 분석된 맥락이 없습니다
+            </strong>
+
+            <p>
+              대화를 녹음하면 AI가 발언을
+              분석하여 필요한 맥락 후보를
+              표시합니다.
+            </p>
+          </div>
         )}
       </div>
 
-      {/* =========================
-          선택 결과
-      ========================== */}
+      {/* ========================================
+          선택된 후보 편집 / 확정
+      ======================================== */}
 
-      {selectedContextId !== null &&
-        contexts.length > 0 && (
+      {selectedContext && (
+        <div className="context-selection-editor">
           <div className="selected-context-message">
             <Check
               size={16}
@@ -190,7 +389,113 @@ function ContextPanel({
             실제 의도와 가까운 맥락을
             선택했습니다.
           </div>
-        )}
+
+          {/* 아직 확정되지 않은 경우 */}
+
+          {!selectedContext.resolved && (
+            <>
+              <div className="context-edit-header">
+                <strong>
+                  선택한 맥락
+                </strong>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsEditing(
+                      (current) =>
+                        !current
+                    )
+                  }
+                >
+                  <Pencil
+                    size={14}
+                  />
+
+                  {isEditing
+                    ? "수정 취소"
+                    : "직접 수정"}
+                </button>
+              </div>
+
+              {isEditing ? (
+                <div className="context-edit-area">
+                  <textarea
+                    value={
+                      editText
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setEditText(
+                        event.target
+                          .value
+                      )
+                    }
+                    rows={4}
+                    placeholder="실제 의미에 맞게 맥락을 수정해주세요."
+                  />
+
+                  <button
+                    type="button"
+                    onClick={
+                      handleSaveEdit
+                    }
+                    disabled={
+                      isSaving ||
+                      !editText.trim()
+                    }
+                  >
+                    <Save
+                      size={15}
+                    />
+
+                    {isSaving
+                      ? "저장 중..."
+                      : "수정 내용 저장"}
+                  </button>
+                </div>
+              ) : (
+                <div className="context-selected-preview">
+                  {editText}
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="context-resolve-button"
+                onClick={
+                  handleResolve
+                }
+                disabled={
+                  isResolving
+                }
+              >
+                <CheckCircle2
+                  size={17}
+                />
+
+                {isResolving
+                  ? "확정 중..."
+                  : "이 맥락으로 최종 확정"}
+              </button>
+            </>
+          )}
+
+          {/* 확정 완료 */}
+
+          {selectedContext.resolved && (
+            <div className="context-resolved-message">
+              <CheckCircle2
+                size={18}
+              />
+
+              이 맥락으로 최종
+              확정되었습니다.
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -201,17 +506,36 @@ function ContextPanel({
 
 function getConfidence(context) {
   /*
-    백엔드가
+    현재 백엔드:
+
+    intentSimilarityScore: 0.8
+
+    기존 프론트 호환:
 
     confidence: 0.82
-
-    형태로 보내도 되고
-
     score: 82
-
-    형태로 보내도 화면에서는
-    둘 다 82%로 처리
   */
+
+  if (
+    context.intentSimilarityScore != null
+  ) {
+    const value = Number(
+      context.intentSimilarityScore
+    );
+
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+
+    if (
+      value >= 0 &&
+      value <= 1
+    ) {
+      return value * 100;
+    }
+
+    return clamp(value);
+  }
 
   if (
     context.confidence != null
@@ -224,16 +548,19 @@ function getConfidence(context) {
       return 0;
     }
 
-    // 0.82 형태
-    if (value >= 0 && value <= 1) {
+    if (
+      value >= 0 &&
+      value <= 1
+    ) {
       return value * 100;
     }
 
-    // 혹시 confidence: 82로 오는 경우
     return clamp(value);
   }
 
-  if (context.score != null) {
+  if (
+    context.score != null
+  ) {
     return clamp(
       Number(context.score)
     );
@@ -242,7 +569,10 @@ function getConfidence(context) {
   return 0;
 }
 
-// 0~100 사이로 제한
+// ========================================
+// 0 ~ 100
+// ========================================
+
 function clamp(value) {
   if (!Number.isFinite(value)) {
     return 0;
@@ -250,7 +580,10 @@ function clamp(value) {
 
   return Math.min(
     100,
-    Math.max(0, value)
+    Math.max(
+      0,
+      value
+    )
   );
 }
 

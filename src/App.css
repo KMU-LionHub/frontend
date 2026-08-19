@@ -519,7 +519,7 @@ button {
 
 .context-panel {
   grid-area: context;
-
+  overflow-y: auto;
   min-height: 0;
 
   padding:
@@ -2300,4 +2300,174 @@ button {
     grid-template-columns:
       1fr;
   }
+}
+/* ========================================
+   Context selection editor
+======================================== */
+
+.context-selection-editor {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #e6e8ef;
+  border-radius: 14px;
+  background: #fafaff;
+}
+
+.context-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  margin-bottom: 10px;
+}
+
+.context-edit-header strong {
+  font-size: 14px;
+  color: #252631;
+}
+
+.context-edit-header button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 7px 11px;
+
+  border: 1px solid #d9dcef;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #5d5f73;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.context-edit-header button:hover {
+  background: #f4f2ff;
+  border-color: #c9c2ff;
+}
+
+.context-selected-preview {
+  padding: 12px 14px;
+
+  border: 1px solid #ebeaf3;
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  color: #4d4f5f;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.context-edit-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.context-edit-area textarea {
+  width: 100%;
+  min-height: 90px;
+
+  padding: 12px 14px;
+
+  border: 1px solid #dfe1ea;
+  border-radius: 10px;
+
+  resize: vertical;
+
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+
+  outline: none;
+
+  box-sizing: border-box;
+}
+
+.context-edit-area textarea:focus {
+  border-color: #7567f8;
+  box-shadow: 0 0 0 3px rgba(117, 103, 248, 0.08);
+}
+
+.context-edit-area button {
+  align-self: flex-end;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 8px 13px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #6d5df6;
+  color: white;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.context-edit-area button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.context-resolve-button {
+  width: 100%;
+
+  margin-top: 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 11px 14px;
+
+  border: none;
+  border-radius: 10px;
+
+  background: #6d5df6;
+  color: white;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.context-resolve-button:hover {
+  background: #5d4be9;
+}
+
+.context-resolve-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.context-resolved-message {
+  margin-top: 12px;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 12px 14px;
+
+  border-radius: 10px;
+
+  background: #eefaf3;
+  color: #2f8f5b;
+
+  font-size: 13px;
+  font-weight: 600;
 }
