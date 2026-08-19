@@ -32,11 +32,6 @@ import "./App.css";
 const API_URL =
   "http://localhost:8080";
 
-const CONTEXT_MODEL =
-  "GEMINI_3_7_FLASH";
-
-const CANDIDATE_COUNT = 3;
-
 function App() {
   // ========================================
   // 인증
@@ -62,7 +57,7 @@ function App() {
   );
 
   // ========================================
-  // 사이드바
+  // 메뉴
   // ========================================
 
   const [
@@ -94,8 +89,18 @@ function App() {
     useRef([]);
 
   // ========================================
-  // 백엔드 ID
+  // 분석
   // ========================================
+
+  const [
+    analysisStatus,
+    setAnalysisStatus,
+  ] = useState("WAITING");
+
+  const [
+    analysisProgress,
+    setAnalysisProgress,
+  ] = useState(0);
 
   const [
     transcriptionId,
@@ -113,23 +118,9 @@ function App() {
   ] = useState(null);
 
   const [
-    contextAnalysisId,
-    setContextAnalysisId,
+    analysisId,
+    setAnalysisId,
   ] = useState(null);
-
-  // ========================================
-  // 분석 상태
-  // ========================================
-
-  const [
-    analysisStatus,
-    setAnalysisStatus,
-  ] = useState("WAITING");
-
-  const [
-    analysisProgress,
-    setAnalysisProgress,
-  ] = useState(0);
 
   // ========================================
   // 결과
@@ -168,7 +159,8 @@ function App() {
     user
   ) => {
     setCurrentUser(
-      user || getStoredUser()
+      user ||
+        getStoredUser()
     );
 
     setIsLoggedIn(true);
@@ -183,7 +175,6 @@ function App() {
 
     stopMicrophone();
 
-    setIsRecording(false);
     setCurrentUser(null);
     setIsLoggedIn(false);
     setAuthPage("login");
@@ -230,17 +221,7 @@ function App() {
 
   useEffect(() => {
     return () => {
-      if (
-        streamRef.current
-      ) {
-        streamRef.current
-          .getTracks()
-          .forEach(
-            (track) => {
-              track.stop();
-            }
-          );
-      }
+      stopMicrophone();
     };
   }, []);
 
@@ -256,11 +237,13 @@ function App() {
         resetAnalysisResult();
 
         const stream =
-          await navigator.mediaDevices
+          await navigator
+            .mediaDevices
             .getUserMedia({
               audio: {
                 echoCancellation:
                   true,
+
                 noiseSuppression:
                   true,
               },
@@ -300,10 +283,9 @@ function App() {
               event.data.size >
               0
             ) {
-              chunksRef.current
-                .push(
-                  event.data
-                );
+              chunksRef.current.push(
+                event.data
+              );
             }
           };
 
@@ -329,16 +311,13 @@ function App() {
         recorder.start();
 
         setElapsedTime(0);
-
         setIsRecording(true);
 
         setAnalysisStatus(
           "RECORDING"
         );
 
-        setAnalysisProgress(
-          0
-        );
+        setAnalysisProgress(0);
       } catch (err) {
         console.error(
           "녹음 시작 실패:",
@@ -370,6 +349,10 @@ function App() {
     setIsRecording(false);
   };
 
+  // ========================================
+  // 녹음 버튼
+  // ========================================
+
   const handleRecordButton =
     () => {
       if (isRecording) {
@@ -380,31 +363,28 @@ function App() {
     };
 
   // ========================================
-  // 마이크 정리
+  // 마이크 종료
   // ========================================
 
-  const stopMicrophone =
-    () => {
-      if (
-        !streamRef.current
-      ) {
-        return;
-      }
+  const stopMicrophone = () => {
+    if (!streamRef.current) {
+      return;
+    }
 
-      streamRef.current
-        .getTracks()
-        .forEach(
-          (track) => {
-            track.stop();
-          }
-        );
+    streamRef.current
+      .getTracks()
+      .forEach(
+        (track) => {
+          track.stop();
+        }
+      );
 
-      streamRef.current =
-        null;
-    };
+    streamRef.current =
+      null;
+  };
 
   // ========================================
-  // 전체 분석 처리
+  // 전체 녹음 처리
   // ========================================
 
   const processRecording =
@@ -413,14 +393,6 @@ function App() {
         setError("");
 
         // 1. STT
-        setAnalysisStatus(
-          "UPLOADING"
-        );
-
-        setAnalysisProgress(
-          20
-        );
-
         const transcription =
           await createTranscription(
             blob
@@ -430,7 +402,7 @@ function App() {
           transcription.id;
 
         if (
-          !newTranscriptionId
+          newTranscriptionId == null
         ) {
           throw new Error(
             "전사 ID를 받지 못했습니다."
@@ -441,35 +413,25 @@ function App() {
           newTranscriptionId
         );
 
-        const newTranscript =
+        const text =
           transcription.currentText ||
           transcription.originalText ||
           "";
 
-        setTranscript(
-          newTranscript
-        );
+        setTranscript(text);
 
-        const newAnnotations =
+        const words =
           Array.isArray(
             transcription.words
           )
             ? transcription.words
             : [];
 
-        setAnnotations(
-          newAnnotations
-        );
+        setAnnotations(words);
+
+        setAnalysisProgress(40);
 
         // 2. 대화 생성
-        setAnalysisStatus(
-          "CREATING_CONVERSATION"
-        );
-
-        setAnalysisProgress(
-          40
-        );
-
         const conversation =
           await createConversation();
 
@@ -477,7 +439,7 @@ function App() {
           conversation.id;
 
         if (
-          !newConversationId
+          newConversationId == null
         ) {
           throw new Error(
             "대화 ID를 받지 못했습니다."
@@ -488,6 +450,7 @@ function App() {
           newConversationId
         );
 
+        // SELF 참여자 찾기
         const selfParticipant =
           findSelfParticipant(
             conversation,
@@ -498,19 +461,11 @@ function App() {
           !selfParticipant?.id
         ) {
           throw new Error(
-            "현재 사용자의 대화 참여자 정보를 찾지 못했습니다."
+            "현재 사용자의 참여자 정보를 찾지 못했습니다."
           );
         }
 
-        // 3. 발언 연결
-        setAnalysisStatus(
-          "LINKING_UTTERANCE"
-        );
-
-        setAnalysisProgress(
-          60
-        );
-
+        // 3. 발언 생성
         const utterance =
           await createUtterance({
             conversationId:
@@ -527,7 +482,7 @@ function App() {
           utterance.id;
 
         if (
-          !newUtteranceId
+          newUtteranceId == null
         ) {
           throw new Error(
             "발언 ID를 받지 못했습니다."
@@ -543,9 +498,7 @@ function App() {
           "ANALYZING_CONTEXT"
         );
 
-        setAnalysisProgress(
-          80
-        );
+        setAnalysisProgress(70);
 
         const analysis =
           await createContextAnalysis({
@@ -562,10 +515,9 @@ function App() {
         );
 
         const newAnalysisId =
-          analysis.id ??
-          null;
+          analysis.id;
 
-        setContextAnalysisId(
+        setAnalysisId(
           newAnalysisId
         );
 
@@ -597,15 +549,13 @@ function App() {
           newSelectedContextId
         );
 
+        setAnalysisProgress(100);
+
         setAnalysisStatus(
           "COMPLETED"
         );
 
-        setAnalysisProgress(
-          100
-        );
-
-        // 5. 기록 자동 저장
+        // 5. 기록 저장
         await persistConversation({
           conversationIdValue:
             newConversationId,
@@ -616,17 +566,17 @@ function App() {
           utteranceIdValue:
             newUtteranceId,
 
-          contextAnalysisIdValue:
+          analysisIdValue:
             newAnalysisId,
 
           transcriptValue:
-            newTranscript,
+            text,
 
           contextsValue:
             normalizedContexts,
 
           annotationsValue:
-            newAnnotations,
+            words,
 
           selectedContextIdValue:
             newSelectedContextId,
@@ -644,13 +594,11 @@ function App() {
           "FAILED"
         );
 
-        setAnalysisProgress(
-          0
-        );
+        setAnalysisProgress(0);
 
         setError(
           err.message ||
-            "녹음 분석 처리에 실패했습니다."
+            "녹음 처리 중 오류가 발생했습니다."
         );
       }
     };
@@ -661,8 +609,11 @@ function App() {
 
   const createTranscription =
     async (blob) => {
-      const accessToken =
-        requireAccessToken();
+      setAnalysisStatus(
+        "UPLOADING"
+      );
+
+      setAnalysisProgress(20);
 
       const formData =
         new FormData();
@@ -674,16 +625,11 @@ function App() {
       );
 
       const response =
-        await fetch(
+        await authFetch(
           `${API_URL}/api/stt/transcriptions`,
           {
             method:
               "POST",
-
-            headers: {
-              Authorization:
-                `Bearer ${accessToken}`,
-            },
 
             body:
               formData,
@@ -691,8 +637,7 @@ function App() {
         );
 
       return await handleApiResponse(
-        response,
-        "STT 요청에 실패했습니다."
+        response
       );
     };
 
@@ -702,20 +647,14 @@ function App() {
 
   const createConversation =
     async () => {
-      const accessToken =
-        requireAccessToken();
-
       const response =
-        await fetch(
+        await authFetch(
           `${API_URL}/api/conversations`,
           {
             method:
               "POST",
 
             headers: {
-              Authorization:
-                `Bearer ${accessToken}`,
-
               "Content-Type":
                 "application/json",
             },
@@ -723,10 +662,10 @@ function App() {
             body:
               JSON.stringify({
                 title:
-                  "새 대화",
+                  "AI 맥락 분석",
 
                 context:
-                  "",
+                  null,
 
                 participants:
                   [],
@@ -735,13 +674,12 @@ function App() {
         );
 
       return await handleApiResponse(
-        response,
-        "대화 생성에 실패했습니다."
+        response
       );
     };
 
   // ========================================
-  // 발언 연결
+  // 발언 생성
   // ========================================
 
   const createUtterance =
@@ -750,20 +688,14 @@ function App() {
       transcriptionId,
       speakerParticipantId,
     }) => {
-      const accessToken =
-        requireAccessToken();
-
       const response =
-        await fetch(
+        await authFetch(
           `${API_URL}/api/conversations/${conversationId}/utterances`,
           {
             method:
               "POST",
 
             headers: {
-              Authorization:
-                `Bearer ${accessToken}`,
-
               "Content-Type":
                 "application/json",
             },
@@ -777,8 +709,7 @@ function App() {
         );
 
       return await handleApiResponse(
-        response,
-        "발언 연결에 실패했습니다."
+        response
       );
     };
 
@@ -791,20 +722,14 @@ function App() {
       conversationId,
       utteranceId,
     }) => {
-      const accessToken =
-        requireAccessToken();
-
       const response =
-        await fetch(
+        await authFetch(
           `${API_URL}/api/context-analyses`,
           {
             method:
               "POST",
 
             headers: {
-              Authorization:
-                `Bearer ${accessToken}`,
-
               "Content-Type":
                 "application/json",
             },
@@ -815,22 +740,21 @@ function App() {
                 utteranceId,
 
                 candidateCount:
-                  CANDIDATE_COUNT,
+                  3,
 
                 model:
-                  CONTEXT_MODEL,
+                  "GEMINI_3_7_FLASH",
               }),
           }
         );
 
       return await handleApiResponse(
-        response,
-        "AI 맥락 분석에 실패했습니다."
+        response
       );
     };
 
   // ========================================
-  // IndexedDB 기록 저장
+  // IndexedDB 저장
   // ========================================
 
   const persistConversation =
@@ -844,8 +768,8 @@ function App() {
       utteranceIdValue =
         utteranceId,
 
-      contextAnalysisIdValue =
-        contextAnalysisId,
+      analysisIdValue =
+        analysisId,
 
       transcriptValue =
         transcript,
@@ -863,8 +787,7 @@ function App() {
         elapsedTime,
     } = {}) => {
       if (
-        conversationIdValue ==
-        null
+        conversationIdValue == null
       ) {
         return;
       }
@@ -883,8 +806,8 @@ function App() {
           utteranceId:
             utteranceIdValue,
 
-          contextAnalysisId:
-            contextAnalysisIdValue,
+          analysisId:
+            analysisIdValue,
 
           transcript:
             transcriptValue ||
@@ -925,16 +848,18 @@ function App() {
     };
 
   // ========================================
-  // 전사 수정
+  // 발언 수정
   // ========================================
 
   const handleTranscriptSave =
-    (updatedTranscript) => {
+    async (
+      updatedTranscript
+    ) => {
       setTranscript(
         updatedTranscript
       );
 
-      persistConversation({
+      await persistConversation({
         transcriptValue:
           updatedTranscript,
       });
@@ -945,69 +870,70 @@ function App() {
   // ========================================
 
   const handleSelectContext =
-    async (contextId) => {
+    async (
+      contextId
+    ) => {
       try {
         setError("");
 
-        const selectedContext =
+        const context =
           contexts.find(
-            (context) =>
-              context.id ===
+            (item) =>
+              item.id ===
               contextId
           );
 
-        if (
-          !selectedContext
-        ) {
+        if (!context) {
           throw new Error(
             "선택한 맥락 후보를 찾을 수 없습니다."
           );
         }
 
-        const {
-          analysisId,
-          ambiguityId,
-        } =
-          selectedContext;
+        const candidateId =
+          Number(
+            context.id
+          );
 
-        const accessToken =
-          requireAccessToken();
+        if (
+          !Number.isFinite(
+            candidateId
+          )
+        ) {
+          throw new Error(
+            "후보 ID가 올바르지 않습니다."
+          );
+        }
 
         const response =
-          await fetch(
-            `${API_URL}/api/context-analyses/${analysisId}/ambiguities/${ambiguityId}/selection`,
+          await authFetch(
+            `${API_URL}/api/context-analyses/${context.analysisId}/ambiguities/${context.ambiguityId}/selection`,
             {
               method:
                 "PUT",
 
               headers: {
-                Authorization:
-                  `Bearer ${accessToken}`,
-
                 "Content-Type":
                   "application/json",
               },
 
               body:
                 JSON.stringify({
-                  candidateId:
-                    contextId,
+                  candidateId,
                 }),
             }
           );
 
         await handleApiResponse(
-          response,
-          "맥락 후보 선택에 실패했습니다."
+          response
         );
 
         const updatedContexts =
           contexts.map(
-            (context) => ({
-              ...context,
+            (item) => ({
+              ...item,
 
               selected:
-                context.id ===
+                item.id ===
                 contextId,
             })
           );
@@ -1034,72 +960,63 @@ function App() {
         );
 
         setError(
-          err.message
+          err.message ||
+            "맥락 선택에 실패했습니다."
         );
       }
     };
 
   // ========================================
-  // 직접 수정
+  // 맥락 직접 수정
+  //
+  // 여기서는 프론트 상태만 수정.
+  // 최종 확정할 때 CUSTOM으로 백엔드 전송.
   // ========================================
 
   const handleEditContext =
     async (
-      selectedContext,
+      context,
       text
     ) => {
       try {
         setError("");
 
-        const {
-          analysisId,
-          ambiguityId,
-          id: candidateId,
-        } =
-          selectedContext;
-
-        const accessToken =
-          requireAccessToken();
-
-        const response =
-          await fetch(
-            `${API_URL}/api/context-analyses/${analysisId}/ambiguities/${ambiguityId}/selection`,
-            {
-              method:
-                "PATCH",
-
-              headers: {
-                Authorization:
-                  `Bearer ${accessToken}`,
-
-                "Content-Type":
-                  "application/json",
-              },
-
-              body:
-                JSON.stringify({
-                  text,
-                }),
-            }
+        if (!context) {
+          throw new Error(
+            "수정할 맥락이 없습니다."
           );
+        }
 
-        await handleApiResponse(
-          response,
-          "맥락 직접 수정에 실패했습니다."
-        );
+        const trimmedText =
+          String(
+            text ||
+            ""
+          ).trim();
+
+        if (!trimmedText) {
+          throw new Error(
+            "수정할 내용을 입력해주세요."
+          );
+        }
 
         const updatedContexts =
           contexts.map(
-            (context) =>
-              context.id ===
-              candidateId
+            (item) =>
+              item.id ===
+              context.id
                 ? {
-                    ...context,
+                    ...item,
 
                     editedText:
-                      text,
+                      trimmedText,
+
+                    finalText:
+                      trimmedText,
+
+                    wasEdited:
+                      true,
                   }
-                : context
+                : item
           );
 
         setContexts(
@@ -1120,7 +1037,8 @@ function App() {
         );
 
         setError(
-          err.message
+          err.message ||
+            "맥락 수정에 실패했습니다."
         );
 
         throw err;
@@ -1128,70 +1046,130 @@ function App() {
     };
 
   // ========================================
-  // 최종 확정
+  // 맥락 최종 확정
   //
-  // 중요:
-  // CANDIDATE 타입일 때는
-  // candidateId만 전송한다.
+  // 백엔드 실제 규칙:
+  //
+  // CANDIDATE
+  // - candidateId 필요
+  // - text 있으면 안 됨
+  //
+  // CUSTOM
+  // - candidateId 있으면 안 됨
+  // - text 필요
+  //
+  // DISMISSED
+  // - 둘 다 없어야 함
   // ========================================
 
   const handleResolveContext =
     async (
-      selectedContext,
+      context,
       finalText
     ) => {
       try {
         setError("");
 
-        const {
-          analysisId,
-          ambiguityId,
-          id: candidateId,
-        } =
-          selectedContext;
-
-        if (
-          analysisId == null ||
-          ambiguityId == null ||
-          candidateId == null
-        ) {
+        if (!context) {
           throw new Error(
-            "최종 확정에 필요한 맥락 정보가 없습니다."
+            "선택된 맥락이 없습니다."
           );
         }
 
-        const accessToken =
-          requireAccessToken();
+        if (
+          context.analysisId ==
+            null ||
+          context.ambiguityId ==
+            null
+        ) {
+          throw new Error(
+            "맥락 분석 정보를 찾을 수 없습니다."
+          );
+        }
+
+        const candidateId =
+          Number(
+            context.id
+          );
+
+        if (
+          !Number.isFinite(
+            candidateId
+          )
+        ) {
+          throw new Error(
+            "후보 ID가 올바르지 않습니다."
+          );
+        }
+
+        const customText =
+          String(
+            finalText ||
+            context.editedText ||
+            context.finalText ||
+            ""
+          ).trim();
+
+        let requestBody;
+
+        // ========================================
+        // 직접 수정한 경우 → CUSTOM
+        // ========================================
+
+        if (
+          context.wasEdited ===
+            true &&
+          customText
+        ) {
+          requestBody = {
+            type:
+              "CUSTOM",
+
+            text:
+              customText,
+          };
+        }
+
+        // ========================================
+        // 후보 그대로 확정 → CANDIDATE
+        // ========================================
+
+        else {
+          requestBody = {
+            type:
+              "CANDIDATE",
+
+            candidateId,
+          };
+        }
+
+        console.log(
+          "CONTEXT RESOLUTION REQUEST:",
+          requestBody
+        );
 
         const response =
-          await fetch(
-            `${API_URL}/api/context-analyses/${analysisId}/ambiguities/${ambiguityId}/resolution`,
+          await authFetch(
+            `${API_URL}/api/context-analyses/${context.analysisId}/ambiguities/${context.ambiguityId}/resolution`,
             {
               method:
                 "PUT",
 
               headers: {
-                Authorization:
-                  `Bearer ${accessToken}`,
-
                 "Content-Type":
                   "application/json",
               },
 
               body:
-                JSON.stringify({
-                  type:
-                    "CANDIDATE",
-
-                  candidateId,
-                }),
+                JSON.stringify(
+                  requestBody
+                ),
             }
           );
 
         const data =
           await handleApiResponse(
-            response,
-            "맥락 최종 확정에 실패했습니다."
+            response
           );
 
         console.log(
@@ -1199,24 +1177,33 @@ function App() {
           data
         );
 
+        const resolvedText =
+          context.wasEdited
+            ? customText
+            : (
+                context.interpretation ||
+                context.title ||
+                ""
+              );
+
         const updatedContexts =
           contexts.map(
-            (context) =>
-              context.id ===
-              candidateId
+            (item) =>
+              item.id ===
+              context.id
                 ? {
-                    ...context,
+                    ...item,
+
+                    selected:
+                      true,
 
                     resolved:
                       true,
 
                     finalText:
-                      finalText ||
-                      context.editedText ||
-                      context.description ||
-                      "",
+                      resolvedText,
                   }
-                : context
+                : item
           );
 
         setContexts(
@@ -1224,7 +1211,7 @@ function App() {
         );
 
         setSelectedContextId(
-          candidateId
+          context.id
         );
 
         await persistConversation({
@@ -1232,19 +1219,19 @@ function App() {
             updatedContexts,
 
           selectedContextIdValue:
-            candidateId,
+            context.id,
         });
 
         return data;
       } catch (err) {
         console.error(
-          "최종 확정 실패:",
+          "맥락 확정 실패:",
           err
         );
 
         setError(
           err.message ||
-            "맥락 최종 확정에 실패했습니다."
+            "맥락 확정에 실패했습니다."
         );
 
         throw err;
@@ -1252,11 +1239,13 @@ function App() {
     };
 
   // ========================================
-  // 기록 다시 열기
+  // 대화 기록 열기
   // ========================================
 
   const handleOpenConversation =
-    (conversation) => {
+    (
+      conversation
+    ) => {
       setTranscript(
         conversation.transcript ||
           ""
@@ -1308,9 +1297,9 @@ function App() {
           null
       );
 
-      setContextAnalysisId(
+      setAnalysisId(
         conversation
-          .contextAnalysisId ??
+          .analysisId ??
           null
       );
 
@@ -1347,7 +1336,7 @@ function App() {
         null
       );
 
-      setContextAnalysisId(
+      setAnalysisId(
         null
       );
 
@@ -1379,12 +1368,15 @@ function App() {
       stopMicrophone();
 
       if (
-        mediaRecorderRef.current &&
         mediaRecorderRef
-          .current.state !==
+          .current &&
+        mediaRecorderRef
+          .current
+          .state !==
           "inactive"
       ) {
-        mediaRecorderRef.current
+        mediaRecorderRef
+          .current
           .stop();
       }
 
@@ -1424,6 +1416,7 @@ function App() {
         onLoginSuccess={
           handleLoginSuccess
         }
+
         onGoSignup={() =>
           setAuthPage(
             "signup"
@@ -1434,7 +1427,7 @@ function App() {
   }
 
   // ========================================
-  // 메인 UI
+  // 메인
   // ========================================
 
   return (
@@ -1443,9 +1436,11 @@ function App() {
         activeMenu={
           activeMenu
         }
+
         onMenuChange={
           handleMenuChange
         }
+
         onLogout={
           handleLogout
         }
@@ -1454,14 +1449,19 @@ function App() {
       <div className="dashboard-main">
         <Header
           nickname={
-            currentUser?.nickname
+            currentUser
+              ?.nickname
           }
+
           email={
-            currentUser?.email
+            currentUser
+              ?.email
           }
+
           isRecording={
             isRecording
           }
+
           onLogout={
             handleLogout
           }
@@ -1486,59 +1486,87 @@ function App() {
             <HelpPage />
           ) : (
             <div className="dashboard-grid">
-              <RecordingPanel
-                isRecording={
-                  isRecording
-                }
-                elapsedTime={
-                  elapsedTime
-                }
-                transcript={
-                  transcript
-                }
-                onRecordToggle={
-                  handleRecordButton
-                }
-              />
+              {/* 왼쪽 */}
 
-              <AnalysisProgress
-                progress={
-                  analysisProgress
-                }
-                status={
-                  analysisStatus
-                }
-              />
+              <div className="dashboard-left-column">
+                <RecordingPanel
+                  isRecording={
+                    isRecording
+                  }
 
-              <TranscriptPanel
-                transcript={
-                  transcript
-                }
-                annotations={
-                  annotations
-                }
-                onTranscriptSave={
-                  handleTranscriptSave
-                }
-              />
+                  elapsedTime={
+                    elapsedTime
+                  }
 
-              <ContextPanel
-                contexts={
-                  contexts
-                }
-                selectedContextId={
-                  selectedContextId
-                }
-                onSelectContext={
-                  handleSelectContext
-                }
-                onEditContext={
-                  handleEditContext
-                }
-                onResolveContext={
-                  handleResolveContext
-                }
-              />
+                  transcript={
+                    transcript
+                  }
+
+                  onRecordToggle={
+                    handleRecordButton
+                  }
+                />
+
+                <TranscriptPanel
+                  transcript={
+                    transcript
+                  }
+
+                  annotations={
+                    annotations
+                  }
+
+                  onTranscriptSave={
+                    handleTranscriptSave
+                  }
+                />
+              </div>
+
+              {/* 오른쪽 */}
+
+              <div className="dashboard-right-column">
+                <AnalysisProgress
+                  progress={
+                    analysisProgress
+                  }
+
+                  status={
+                    analysisStatus
+                  }
+                />
+
+                <ContextPanel
+                  contexts={
+                    contexts
+                  }
+
+                  selectedContextId={
+                    selectedContextId
+                  }
+
+                  onSelectContext={
+                    handleSelectContext
+                  }
+
+                  onEditContext={
+                    handleEditContext
+                  }
+
+                  onResolveContext={
+                    handleResolveContext
+                  }
+
+                  analysisCompleted={
+                    analysisStatus ===
+                    "COMPLETED"
+                  }
+
+                  isAnalyzing={
+                    analysisStatus ===
+                    "ANALYZING_CONTEXT"
+                  }
+                />
+              </div>
             </div>
           )}
         </main>
@@ -1548,68 +1576,7 @@ function App() {
 }
 
 // ========================================
-// 토큰
-// ========================================
-
-function requireAccessToken() {
-  const token =
-    getAccessToken();
-
-  if (!token) {
-    throw new Error(
-      "로그인이 필요합니다."
-    );
-  }
-
-  return token;
-}
-
-// ========================================
-// API 응답 처리
-// ========================================
-
-async function handleApiResponse(
-  response,
-  fallbackMessage
-) {
-  if (
-    response.status ===
-    401
-  ) {
-    logout();
-
-    throw new Error(
-      "로그인이 만료되었습니다."
-    );
-  }
-
-  const data =
-    await readResponseBody(
-      response
-    );
-
-  if (!response.ok) {
-    const errors =
-      Array.isArray(
-        data?.errors
-      )
-        ? data.errors.join(
-            ", "
-          )
-        : "";
-
-    throw new Error(
-      data?.message ||
-        errors ||
-        `${fallbackMessage} HTTP ${response.status}`
-    );
-  }
-
-  return data;
-}
-
-// ========================================
-// SELF 찾기
+// SELF 참여자 찾기
 // ========================================
 
 function findSelfParticipant(
@@ -1648,7 +1615,8 @@ function findSelfParticipant(
           Number(
             currentUser.id
           )
-      ) || null
+      ) ||
+      null
     );
   }
 
@@ -1656,130 +1624,191 @@ function findSelfParticipant(
 }
 
 // ========================================
-// AI 응답 변환
+// AI 후보 정규화
 // ========================================
 
 function normalizeContextCandidates(
   analysis
 ) {
-  const normalized = [];
-
   if (
-    Array.isArray(
-      analysis?.ambiguities
+    !analysis ||
+    !Array.isArray(
+      analysis.ambiguities
     )
   ) {
-    analysis.ambiguities
-      .forEach(
-        (ambiguity) => {
-          const candidates =
-            Array.isArray(
-              ambiguity
-                ?.candidates
-            )
-              ? ambiguity.candidates
-              : [];
-
-          candidates.forEach(
-            (candidate) => {
-              normalized.push(
-                normalizeCandidate(
-                  candidate,
-                  ambiguity,
-                  analysis
-                )
-              );
-            }
-          );
-        }
-      );
+    return [];
   }
 
-  return normalized;
-}
+  const result = [];
 
-function normalizeCandidate(
-  candidate,
-  ambiguity,
-  analysis
-) {
-  const selection =
-    ambiguity?.selection;
+  analysis.ambiguities.forEach(
+    (ambiguity) => {
+      if (
+        !Array.isArray(
+          ambiguity.candidates
+        )
+      ) {
+        return;
+      }
 
-  return {
-    id:
-      candidate?.id,
+      ambiguity.candidates
+        .forEach(
+          (candidate) => {
+            result.push({
+              ...candidate,
 
-    title:
-      candidate
-        ?.inferredIntent ||
-      candidate
-        ?.interpretation ||
-      "맥락 후보",
+              id:
+                Number(
+                  candidate.id
+                ),
 
-    description:
-      candidate
-        ?.interpretation ||
-      candidate
-        ?.rationale ||
-      "",
+              analysisId:
+                Number(
+                  analysis.id
+                ),
 
-    confidence:
-      candidate
-        ?.intentSimilarityScore ??
-      0,
+              ambiguityId:
+                Number(
+                  ambiguity.id
+                ),
 
-    rationale:
-      candidate
-        ?.rationale ||
-      "",
+              excerpt:
+                ambiguity.excerpt,
 
-    inferredIntent:
-      candidate
-        ?.inferredIntent ||
-      "",
+              title:
+                candidate
+                  .inferredIntent ||
+                candidate
+                  .interpretation ||
+                "맥락 후보",
 
-    interpretation:
-      candidate
-        ?.interpretation ||
-      "",
+              description:
+                candidate
+                  .rationale ||
+                candidate
+                  .interpretation ||
+                "",
 
-    rank:
-      candidate?.rank ??
-      null,
+              confidence:
+                Number(
+                  candidate
+                    .intentSimilarityScore ??
+                  0
+                ),
 
-    ambiguityId:
-      ambiguity?.id ??
-      null,
+              selected:
+                candidate
+                  .selected ===
+                true,
 
-    analysisId:
-      analysis?.id ??
-      null,
+              resolved:
+                Boolean(
+                  ambiguity
+                    ?.selection
+                ),
 
-    selected:
-      candidate
-        ?.selected ===
-      true,
+              finalText:
+                ambiguity
+                  ?.selection
+                  ?.finalText ||
+                "",
 
-    editedText:
-      selection?.edited
-        ? selection?.finalText ||
-          ""
-        : "",
+              editedText:
+                "",
 
-    finalText:
-      selection?.finalText ||
-      "",
+              wasEdited:
+                false,
+            });
+          }
+        );
+    }
+  );
 
-    resolved:
-      Boolean(
-        ambiguity?.resolution
-      ),
-  };
+  return result;
 }
 
 // ========================================
-// 응답 읽기
+// 인증 Fetch
+// ========================================
+
+async function authFetch(
+  url,
+  options = {}
+) {
+  const accessToken =
+    getAccessToken();
+
+  if (!accessToken) {
+    throw new Error(
+      "로그인이 필요합니다."
+    );
+  }
+
+  const headers = {
+    ...(options.headers ||
+      {}),
+
+    Authorization:
+      `Bearer ${accessToken}`,
+  };
+
+  return fetch(
+    url,
+    {
+      ...options,
+
+      headers,
+    }
+  );
+}
+
+// ========================================
+// API 응답 처리
+// ========================================
+
+async function handleApiResponse(
+  response
+) {
+  const data =
+    await readResponseBody(
+      response
+    );
+
+  if (
+    response.status ===
+    401
+  ) {
+    logout();
+
+    throw new Error(
+      "로그인이 만료되었습니다."
+    );
+  }
+
+  if (!response.ok) {
+    const message =
+      data?.message ||
+      (
+        Array.isArray(
+          data?.errors
+        )
+          ? data.errors.join(
+              ", "
+            )
+          : null
+      ) ||
+      `요청에 실패했습니다. HTTP ${response.status}`;
+
+    throw new Error(
+      message
+    );
+  }
+
+  return data;
+}
+
+// ========================================
+// Response 읽기
 // ========================================
 
 async function readResponseBody(
@@ -1800,6 +1829,10 @@ async function readResponseBody(
 
   const text =
     await response.text();
+
+  if (!text) {
+    return {};
+  }
 
   return {
     message: text,

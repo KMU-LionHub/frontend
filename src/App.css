@@ -1,3 +1,7 @@
+/* ========================================
+   기본 설정
+======================================== */
+
 * {
   box-sizing: border-box;
 }
@@ -36,7 +40,9 @@ body {
 
 body {
   min-height: 100vh;
+
   background: #f4f5f9;
+
   overflow-x: hidden;
 }
 
@@ -49,6 +55,7 @@ textarea {
 button {
   -webkit-tap-highlight-color: transparent;
 }
+
 
 /* ========================================
    전체 레이아웃
@@ -75,6 +82,7 @@ button {
   display: flex;
   flex-direction: column;
 }
+
 
 /* ========================================
    Sidebar
@@ -109,28 +117,33 @@ button {
     rgba(255, 255, 255, 0.04);
 }
 
+
+/* ========================================
+   Sidebar 브랜드
+======================================== */
+
 .sidebar-brand {
   display: flex;
   align-items: center;
 
-  gap: 12px;
+  gap: 13px;
 
   padding:
     0
     8px
-    28px;
+    30px;
 }
 
 .sidebar-logo {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
 
   flex-shrink: 0;
 
   display: grid;
   place-items: center;
 
-  border-radius: 12px;
+  border-radius: 13px;
 
   background:
     linear-gradient(
@@ -145,61 +158,81 @@ button {
 }
 
 .sidebar-logo span {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
 
   border-radius: 50%;
 
-  border: 3px solid #ffffff;
+  border:
+    3px solid #ffffff;
 }
 
 .sidebar-brand strong {
   display: block;
 
-  font-size: 15px;
+  color: #ffffff;
+
+  /*
+    기존보다 키움
+  */
+  font-size: 17px;
   font-weight: 700;
 
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
 }
 
 .sidebar-brand p {
   margin:
-    3px
+    5px
     0
     0;
 
-  color: #7d7f89;
+  color: #82848e;
 
-  font-size: 9px;
+  /*
+    기존 9px 정도 → 10px
+  */
+  font-size: 10px;
+
+  line-height: 1.5;
 }
+
+
+/* ========================================
+   Sidebar 메뉴
+======================================== */
 
 .sidebar-menu {
   display: flex;
   flex-direction: column;
 
-  gap: 6px;
+  gap: 7px;
 }
 
 .sidebar-menu-item,
 .sidebar-logout {
   width: 100%;
-  height: 44px;
+
+  /*
+    기존보다 살짝 높게
+  */
+  height: 48px;
 
   display: flex;
   align-items: center;
 
-  gap: 12px;
+  gap: 13px;
 
   padding:
     0
-    13px;
+    14px;
 
   border: none;
-  border-radius: 10px;
+  border-radius: 11px;
 
   background: transparent;
 
-  color: #8e909a;
+  color: #999ba5;
 
   text-align: left;
 
@@ -207,7 +240,8 @@ button {
 
   transition:
     background 0.18s ease,
-    color 0.18s ease;
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .sidebar-menu-item:hover,
@@ -215,7 +249,17 @@ button {
   color: #ffffff;
 
   background:
-    rgba(255, 255, 255, 0.06);
+    rgba(
+      255,
+      255,
+      255,
+      0.06
+    );
+}
+
+.sidebar-menu-item:hover {
+  transform:
+    translateX(1px);
 }
 
 .sidebar-menu-item.active {
@@ -224,8 +268,18 @@ button {
   background:
     linear-gradient(
       90deg,
-      rgba(105, 89, 229, 0.28),
-      rgba(105, 89, 229, 0.12)
+      rgba(
+        105,
+        89,
+        229,
+        0.30
+      ),
+      rgba(
+        105,
+        89,
+        229,
+        0.12
+      )
     );
 
   box-shadow:
@@ -233,11 +287,36 @@ button {
     #7365eb;
 }
 
+
+/*
+  ★ 사이드바 메뉴 글씨 크기
+*/
+
 .sidebar-menu-item span,
 .sidebar-logout span {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
+
+  letter-spacing: -0.1px;
 }
+
+
+/*
+  lucide 아이콘도 조금 커 보이게
+*/
+
+.sidebar-menu-item svg,
+.sidebar-logout svg {
+  flex-shrink: 0;
+
+  width: 18px;
+  height: 18px;
+}
+
+
+/* ========================================
+   Sidebar 아래
+======================================== */
 
 .sidebar-bottom {
   margin-top: auto;
@@ -246,8 +325,14 @@ button {
 
   border-top:
     1px solid
-    rgba(255, 255, 255, 0.06);
+    rgba(
+      255,
+      255,
+      255,
+      0.06
+    );
 }
+
 
 /* ========================================
    Header
@@ -309,7 +394,7 @@ button {
 
   color: #db4d5d;
 
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -326,6 +411,11 @@ button {
     1.25s
     infinite;
 }
+
+
+/* ========================================
+   Header 사용자
+======================================== */
 
 .header-user-area {
   display: flex;
@@ -372,7 +462,7 @@ button {
 
   color: #292b34;
 
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -389,7 +479,7 @@ button {
 
   color: #999aa6;
 
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .header-logout-button {
@@ -421,8 +511,10 @@ button {
 
 .header-logout-button:hover {
   background: #f7f7fb;
+
   color: #5651d6;
 }
+
 
 /* ========================================
    메인 콘텐츠
@@ -440,11 +532,23 @@ button {
     20px;
 }
 
+
+/* ========================================
+   ★ 메인 Dashboard 레이아웃
+
+   좌측 / 우측 완전히 독립
+======================================== */
+
 .dashboard-grid {
   width: 100%;
 
-  min-height:
+  /*
+    화면 남은 높이를 최대한 사용
+  */
+  height:
     calc(100vh - 110px);
+
+  min-height: 720px;
 
   display: grid;
 
@@ -452,18 +556,62 @@ button {
     minmax(0, 1.72fr)
     minmax(350px, 1fr);
 
-  grid-template-rows:
-    minmax(370px, 1fr)
-    minmax(320px, 0.9fr);
-
-  grid-template-areas:
-    "recording analysis"
-    "transcript context";
-
   gap: 16px;
 
   align-items: stretch;
 }
+
+
+/* ========================================
+   왼쪽 Column
+
+   녹음 / 발언 전문
+======================================== */
+
+.dashboard-left-column {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+
+  display: grid;
+
+  /*
+    왼쪽은 위가 조금 더 큼
+  */
+  grid-template-rows:
+    minmax(0, 1.04fr)
+    minmax(0, 0.96fr);
+
+  gap: 16px;
+}
+
+
+/* ========================================
+   오른쪽 Column
+
+   분석 진행 / 맥락 후보
+======================================== */
+
+.dashboard-right-column {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+
+  display: grid;
+
+  /*
+    ★ 분석 진행 상태는 작게
+    ★ 맥락 후보 분석은 크게
+  */
+  grid-template-rows:
+    minmax(0, 0.78fr)
+    minmax(0, 1.22fr);
+
+  gap: 16px;
+}
+
 
 /* ========================================
    공통 카드
@@ -471,7 +619,10 @@ button {
 
 .dashboard-card {
   width: 100%;
+
   min-width: 0;
+  min-height: 0;
+
   height: 100%;
 
   background: #ffffff;
@@ -483,11 +634,22 @@ button {
 
   box-shadow:
     0 8px 28px
-    rgba(34, 32, 73, 0.035);
+    rgba(
+      34,
+      32,
+      73,
+      0.035
+    );
 }
 
+
+/* ========================================
+   RecordingPanel
+======================================== */
+
 .recording-panel {
-  grid-area: recording;
+  width: 100%;
+  height: 100%;
 
   min-height: 0;
 
@@ -495,40 +657,95 @@ button {
     24px
     27px
     20px;
+
+  overflow: hidden;
 }
 
+
+/* ========================================
+   AnalysisProgress
+======================================== */
+
 .analysis-progress-panel {
-  grid-area: analysis;
+  width: 100%;
+  height: 100%;
 
   min-height: 0;
 
   padding:
     24px
     25px;
+
+  overflow: hidden;
 }
 
+
+/* ========================================
+   TranscriptPanel
+======================================== */
+
 .transcript-panel {
-  grid-area: transcript;
+  width: 100%;
+  height: 100%;
 
   min-height: 0;
 
   padding:
     24px
     27px;
+
+  overflow-y: auto;
 }
 
+
+/* ========================================
+   ContextPanel
+======================================== */
+
 .context-panel {
-  grid-area: context;
-  overflow-y: auto;
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
   min-height: 0;
 
   padding:
     24px
     25px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  overscroll-behavior: contain;
+
+  scrollbar-width: thin;
+
+  scrollbar-color:
+    #d8d5ef
+    transparent;
 }
 
+.context-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.context-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.context-panel::-webkit-scrollbar-thumb {
+  background: #d8d5ef;
+
+  border-radius: 999px;
+}
+
+.context-panel::-webkit-scrollbar-thumb:hover {
+  background: #c2bce7;
+}
+
+
 /* ========================================
-   공통 카드 상단
+   공통 카드 제목
 ======================================== */
 
 .panel-heading-row {
@@ -544,19 +761,22 @@ button {
 
   color: #20222b;
 
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
+
+  letter-spacing: -0.2px;
 }
 
 .panel-heading-row p {
   margin:
-    6px
+    7px
     0
     0;
 
   color: #989aa5;
 
-  font-size: 9px;
+  font-size: 11px;
+
   line-height: 1.55;
 }
 
@@ -573,19 +793,20 @@ button {
   color: #20222b;
 }
 
+
 /* ========================================
-   RecordingPanel
+   Listening Badge
 ======================================== */
 
 .listening-badge {
   display: inline-flex;
   align-items: center;
 
-  gap: 7px;
+  gap: 8px;
 
   padding:
-    6px
-    10px;
+    8px
+    13px;
 
   border-radius: 999px;
 
@@ -593,13 +814,13 @@ button {
 
   color: #999ba6;
 
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
 .listening-badge span {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 
   border-radius: 50%;
 
@@ -617,8 +838,18 @@ button {
 
   box-shadow:
     0 0 0 4px
-    rgba(111, 97, 232, 0.09);
+    rgba(
+      111,
+      97,
+      232,
+      0.09
+    );
 }
+
+
+/* ========================================
+   녹음 버튼 / 시간
+======================================== */
 
 .recording-control-row {
   margin-top: 28px;
@@ -626,17 +857,17 @@ button {
   display: flex;
   align-items: center;
 
-  gap: 20px;
+  gap: 24px;
 }
 
 .record-circle {
-  width: 74px;
-  height: 74px;
+  width: 76px;
+  height: 76px;
 
   flex:
     0
     0
-    74px;
+    76px;
 
   display: grid;
   place-items: center;
@@ -659,7 +890,12 @@ button {
 
   box-shadow:
     0 12px 25px
-    rgba(99, 87, 223, 0.18);
+    rgba(
+      99,
+      87,
+      223,
+      0.18
+    );
 
   transition:
     transform 0.18s ease,
@@ -672,7 +908,12 @@ button {
 
   box-shadow:
     0 15px 30px
-    rgba(99, 87, 223, 0.23);
+    rgba(
+      99,
+      87,
+      223,
+      0.23
+    );
 }
 
 .record-circle.active {
@@ -687,27 +928,38 @@ button {
 
   box-shadow:
     0 12px 25px
-    rgba(231, 79, 97, 0.16);
+    rgba(
+      231,
+      79,
+      97,
+      0.16
+    );
 }
 
 .recording-time-area {
   min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .recording-time-line {
   display: flex;
   align-items: center;
 
-  gap: 10px;
+  gap: 12px;
 }
 
 .recording-time-line strong {
   color: #272934;
 
-  font-size: 22px;
+  font-size: 30px;
   font-weight: 700;
 
-  letter-spacing: 0.7px;
+  line-height: 1;
+
+  letter-spacing: 1px;
 }
 
 .rec-badge {
@@ -715,8 +967,8 @@ button {
   align-items: center;
 
   padding:
-    4px
-    7px;
+    5px
+    8px;
 
   border-radius: 6px;
 
@@ -724,7 +976,7 @@ button {
 
   color: #e64f60;
 
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
 
   letter-spacing: 0.6px;
@@ -732,26 +984,32 @@ button {
 
 .recording-time-area p {
   margin:
-    6px
+    10px
     0
     0;
 
   color: #9698a4;
 
-  font-size: 8.5px;
+  font-size: 11px;
+
   line-height: 1.5;
 }
 
-/* 실시간 자막 */
+
+/* ========================================
+   실시간 자막
+======================================== */
 
 .live-transcript-box {
+  width: 100%;
+
   min-height: 120px;
 
-  margin-top: 24px;
+  margin-top: 28px;
 
   padding:
-    20px
-    22px;
+    24px
+    26px;
 
   display: flex;
   align-items: center;
@@ -759,34 +1017,40 @@ button {
   border:
     1px solid #ececf2;
 
-  border-radius: 11px;
+  border-radius: 12px;
 
   background: #fafafd;
 
-  color: #585a65;
+  color: #555762;
 
-  font-size: 11px;
-  line-height: 1.9;
+  font-size: 15px;
+
+  line-height: 1.8;
+
+  letter-spacing: -0.15px;
 }
 
-/* waveform */
+
+/* ========================================
+   Waveform
+======================================== */
 
 .waveform {
-  height: 64px;
+  height: 60px;
 
-  margin-top: 14px;
+  margin-top: 12px;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
-  gap: 5px;
+  gap: 6px;
 
   opacity: 0.35;
 }
 
 .waveform span {
-  width: 3px;
+  width: 4px;
 
   border-radius: 999px;
 
@@ -806,8 +1070,9 @@ button {
     alternate;
 }
 
+
 /* ========================================
-   AnalysisProgress
+   분석 상태 Badge
 ======================================== */
 
 .analysis-badge {
@@ -817,8 +1082,8 @@ button {
   gap: 6px;
 
   padding:
-    6px
-    9px;
+    7px
+    10px;
 
   border-radius: 999px;
 
@@ -826,7 +1091,7 @@ button {
 
   color: #6c5fe3;
 
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -836,11 +1101,16 @@ button {
   color: #2ca478;
 }
 
+
+/* ========================================
+   Progress Circle
+======================================== */
+
 .progress-circle-wrapper {
   display: flex;
   justify-content: center;
 
-  margin-top: 34px;
+  margin-top: 18px;
 }
 
 .progress-circle {
@@ -848,8 +1118,8 @@ button {
 
   position: relative;
 
-  width: 150px;
-  height: 150px;
+  width: 115px;
+  height: 115px;
 
   display: grid;
   place-items: center;
@@ -858,8 +1128,13 @@ button {
 
   background:
     conic-gradient(
-      #6f61e7 0deg var(--progress),
-      #edeef3 var(--progress) 360deg
+      #6f61e7
+      0deg
+      var(--progress),
+
+      #edeef3
+      var(--progress)
+      360deg
     );
 }
 
@@ -868,7 +1143,7 @@ button {
 
   position: absolute;
 
-  inset: 12px;
+  inset: 10px;
 
   border-radius: 50%;
 
@@ -877,6 +1152,7 @@ button {
 
 .progress-circle-inner {
   position: relative;
+
   z-index: 1;
 
   display: grid;
@@ -886,12 +1162,17 @@ button {
 .progress-circle-inner strong {
   color: #363844;
 
-  font-size: 26px;
+  font-size: 25px;
   font-weight: 700;
 }
 
+
+/* ========================================
+   Progress Bottom
+======================================== */
+
 .progress-bottom {
-  margin-top: 30px;
+  margin-top: 17px;
 }
 
 .progress-label-row {
@@ -901,13 +1182,13 @@ button {
 
   color: #737581;
 
-  font-size: 8.5px;
+  font-size: 10px;
 }
 
 .progress-label-row strong {
   color: #6256df;
 
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .progress-bar {
@@ -946,20 +1227,22 @@ button {
 
   color: #9a9ca7;
 
-  font-size: 8px;
+  font-size: 9px;
+
   line-height: 1.55;
 
   text-align: center;
 }
 
+
 /* ========================================
-   TranscriptPanel
+   Transcript 버튼
 ======================================== */
 
 .transcript-edit-button,
 .transcript-cancel-button,
 .transcript-save-button {
-  height: 32px;
+  height: 34px;
 
   display: inline-flex;
   align-items: center;
@@ -969,13 +1252,13 @@ button {
 
   padding:
     0
-    11px;
+    12px;
 
   border-radius: 8px;
 
   cursor: pointer;
 
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -986,6 +1269,14 @@ button {
   background: #ffffff;
 
   color: #737581;
+}
+
+.transcript-edit-button:hover {
+  border-color: #d4d0ff;
+
+  background: #faf9ff;
+
+  color: #6558df;
 }
 
 .transcript-edit-button:disabled {
@@ -1018,6 +1309,11 @@ button {
   color: #ffffff;
 }
 
+
+/* ========================================
+   Transcript 내용
+======================================== */
+
 .transcript-content {
   margin-top: 18px;
 
@@ -1028,8 +1324,8 @@ button {
   margin: 0;
 
   padding:
-    19px
-    20px;
+    20px
+    22px;
 
   border:
     1px solid #ececf2;
@@ -1040,19 +1336,25 @@ button {
 
   color: #4e505c;
 
-  font-size: 10px;
-  line-height: 2;
+  /*
+    크게
+  */
+  font-size: 14px;
+
+  line-height: 1.8;
+
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .transcript-textarea {
   width: 100%;
+
   min-height: 220px;
 
-  resize: vertical;
-
   padding:
-    17px
-    18px;
+    19px
+    21px;
 
   border:
     1px solid #cfc9ff;
@@ -1065,13 +1367,26 @@ button {
 
   color: #474954;
 
-  font-size: 10px;
+  font-size: 14px;
+
   line-height: 1.8;
+
+  resize: vertical;
 
   box-shadow:
     0 0 0 3px
-    rgba(105, 89, 229, 0.06);
+    rgba(
+      105,
+      89,
+      229,
+      0.06
+    );
 }
+
+
+/* ========================================
+   빈 상태
+======================================== */
 
 .transcript-empty,
 .context-empty {
@@ -1087,9 +1402,21 @@ button {
   color: #aaabb5;
 }
 
+
+/*
+  Context 패널 높이에 맞춰 중앙 배치
+*/
+
+.context-empty {
+  height:
+    calc(100% - 60px);
+
+  min-height: 0;
+}
+
 .transcript-empty svg,
 .context-empty svg {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 
   color: #c2c3cb;
 }
@@ -1098,23 +1425,26 @@ button {
 .context-empty strong {
   color: #777985;
 
-  font-size: 10px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .transcript-empty p,
 .context-empty p {
-  max-width: 250px;
+  max-width: 330px;
 
   margin:
-    6px
+    8px
     0
     0;
 
   color: #a3a4ae;
 
-  font-size: 8px;
-  line-height: 1.55;
+  font-size: 10px;
+
+  line-height: 1.6;
 }
+
 
 /* ========================================
    Annotation
@@ -1133,36 +1463,44 @@ button {
 
   border-radius: 4px;
 
+  font-size: inherit;
+
   cursor: help;
 }
 
 .annotation-person {
   background: #eeeaff;
+
   color: #5f51d2;
 }
 
 .annotation-location {
   background: #e9f5ff;
+
   color: #347aac;
 }
 
 .annotation-time {
   background: #fff0dc;
+
   color: #bd7419;
 }
 
 .annotation-topic {
   background: #f4eaff;
+
   color: #8751bd;
 }
 
 .annotation-organization {
   background: #e9f8f3;
+
   color: #27886c;
 }
 
 .annotation-default {
   background: #f0f1f4;
+
   color: #666874;
 }
 
@@ -1185,12 +1523,12 @@ button {
 
   color: #7e808c;
 
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .annotation-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
 
   border-radius: 50%;
 }
@@ -1219,8 +1557,9 @@ button {
   background: #9fa1ac;
 }
 
+
 /* ========================================
-   ContextPanel
+   Context 후보 개수
 ======================================== */
 
 .context-count-badge {
@@ -1239,9 +1578,14 @@ button {
 
   color: #6759e0;
 
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
 }
+
+
+/* ========================================
+   Context List
+======================================== */
 
 .context-list {
   margin-top: 18px;
@@ -1249,7 +1593,7 @@ button {
   display: flex;
   flex-direction: column;
 
-  gap: 8px;
+  gap: 9px;
 }
 
 .context-candidate {
@@ -1267,8 +1611,8 @@ button {
   gap: 10px;
 
   padding:
-    13px
-    12px;
+    14px
+    13px;
 
   border:
     1px solid #e8e8ef;
@@ -1301,7 +1645,12 @@ button {
 
   box-shadow:
     0 0 0 2px
-    rgba(121, 107, 236, 0.06);
+    rgba(
+      121,
+      107,
+      236,
+      0.06
+    );
 }
 
 .context-rank {
@@ -1332,7 +1681,7 @@ button {
 .context-candidate-title-row strong {
   color: #444650;
 
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .best-context-badge {
@@ -1346,24 +1695,30 @@ button {
 
   color: #6557db;
 
-  font-size: 6.5px;
+  font-size: 7px;
   font-weight: 800;
 }
 
 .context-candidate-content p {
   margin:
-    5px
+    6px
     0
     0;
 
   color: #9698a3;
 
-  font-size: 7.5px;
-  line-height: 1.5;
+  font-size: 9px;
+
+  line-height: 1.55;
 }
 
+
+/* ========================================
+   Context Confidence
+======================================== */
+
 .context-confidence-area {
-  margin-top: 9px;
+  margin-top: 10px;
 
   display: grid;
 
@@ -1401,9 +1756,14 @@ button {
 
   text-align: right;
 
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
 }
+
+
+/* ========================================
+   Context 선택
+======================================== */
 
 .context-select-circle {
   width: 20px;
@@ -1446,12 +1806,253 @@ button {
 
   color: #278568;
 
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
 }
 
+
 /* ========================================
-   에러
+   Context Selection Editor
+======================================== */
+
+.context-selection-editor {
+  margin-top: 12px;
+
+  padding: 13px;
+
+  border:
+    1px solid #e6e4f2;
+
+  border-radius: 11px;
+
+  background: #faf9ff;
+}
+
+.context-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin:
+    0
+    0
+    9px;
+}
+
+.context-edit-header strong {
+  color: #252631;
+
+  font-size: 12px;
+}
+
+.context-edit-header button {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 6px;
+
+  padding:
+    6px
+    9px;
+
+  border:
+    1px solid #d9dcef;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #5d5f73;
+
+  font-size: 9px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.context-edit-header button:hover {
+  background: #f4f2ff;
+
+  border-color: #c9c2ff;
+}
+
+.context-selected-preview {
+  padding:
+    10px
+    11px;
+
+  border:
+    1px solid #ebeaf3;
+
+  border-radius: 9px;
+
+  background: #ffffff;
+
+  color: #4d4f5f;
+
+  font-size: 10px;
+
+  line-height: 1.65;
+}
+
+.context-edit-area {
+  display: flex;
+  flex-direction: column;
+
+  gap: 9px;
+}
+
+.context-edit-area textarea {
+  width: 100%;
+
+  min-height: 90px;
+  max-height: 160px;
+
+  padding:
+    11px
+    12px;
+
+  border:
+    1px solid #dfe1ea;
+
+  border-radius: 9px;
+
+  resize: none;
+
+  outline: none;
+
+  color: #474954;
+
+  font-size: 10px;
+
+  line-height: 1.6;
+}
+
+.context-edit-area textarea:focus {
+  border-color: #7567f8;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      117,
+      103,
+      248,
+      0.08
+    );
+}
+
+.context-edit-area button {
+  align-self: flex-end;
+
+  display: inline-flex;
+  align-items: center;
+
+  gap: 6px;
+
+  padding:
+    7px
+    11px;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: #6d5df6;
+
+  color: #ffffff;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.context-edit-area button:disabled {
+  opacity: 0.55;
+
+  cursor: not-allowed;
+}
+
+
+/* ========================================
+   Context 최종 확정
+======================================== */
+
+.context-resolve-button {
+  width: 100%;
+
+  margin-top: 11px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding:
+    10px
+    12px;
+
+  border: none;
+
+  border-radius: 9px;
+
+  background: #6d5df6;
+
+  color: #ffffff;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.context-resolve-button:hover {
+  background: #5d4be9;
+
+  transform:
+    translateY(-1px);
+}
+
+.context-resolve-button:disabled {
+  opacity: 0.55;
+
+  cursor: not-allowed;
+
+  transform: none;
+}
+
+.context-resolved-message {
+  margin-top: 10px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 7px;
+
+  padding:
+    10px
+    11px;
+
+  border-radius: 9px;
+
+  background: #eefaf3;
+
+  color: #2f8f5b;
+
+  font-size: 10px;
+  font-weight: 600;
+}
+
+
+/* ========================================
+   Error
 ======================================== */
 
 .dashboard-error {
@@ -1473,198 +2074,10 @@ button {
 
   color: #ca4353;
 
-  font-size: 9px;
+  font-size: 10px;
 }
 
-/* ========================================
-   애니메이션
-======================================== */
 
-@keyframes waveformBounce {
-  from {
-    transform:
-      scaleY(0.45);
-
-    opacity: 0.45;
-  }
-
-  to {
-    transform:
-      scaleY(1);
-
-    opacity: 1;
-  }
-}
-
-@keyframes recordingPulse {
-  0% {
-    box-shadow:
-      0 0 0 0
-      rgba(239, 77, 95, 0.22);
-  }
-
-  70% {
-    box-shadow:
-      0 0 0 7px
-      rgba(239, 77, 95, 0);
-  }
-
-  100% {
-    box-shadow:
-      0 0 0 0
-      rgba(239, 77, 95, 0);
-  }
-}
-
-/* ========================================
-   반응형
-======================================== */
-
-@media (max-width: 1100px) {
-  .dashboard-shell {
-    grid-template-columns:
-      190px
-      minmax(0, 1fr);
-  }
-
-  .sidebar {
-    width: 190px;
-  }
-
-  .dashboard-grid {
-    grid-template-columns:
-      minmax(0, 1fr);
-
-    grid-template-rows: auto;
-
-    grid-template-areas:
-      "recording"
-      "analysis"
-      "transcript"
-      "context";
-  }
-
-  .recording-panel,
-  .analysis-progress-panel,
-  .transcript-panel,
-  .context-panel {
-    min-height: 340px;
-  }
-}
-
-@media (max-width: 720px) {
-  .dashboard-shell {
-    display: block;
-  }
-
-  .sidebar {
-    position: relative;
-
-    width: 100%;
-    height: auto;
-
-    padding: 14px;
-  }
-
-  .sidebar-brand {
-    padding:
-      0
-      4px
-      14px;
-  }
-
-  .sidebar-menu {
-    display: grid;
-
-    grid-template-columns:
-      repeat(
-        4,
-        minmax(0, 1fr)
-      );
-
-    gap: 6px;
-  }
-
-  .sidebar-menu-item {
-    height: 48px;
-
-    justify-content: center;
-
-    padding: 0;
-  }
-
-  .sidebar-menu-item span {
-    display: none;
-  }
-
-  .sidebar-bottom {
-    display: none;
-  }
-
-  .dashboard-header {
-    height: 70px;
-    min-height: 70px;
-
-    padding:
-      14px
-      18px;
-  }
-
-  .header-title-area {
-    display: block;
-  }
-
-  .header-title-area h1 {
-    font-size: 14px;
-  }
-
-  .recording-status {
-    margin-top: 6px;
-  }
-
-  .header-user-info {
-    display: none;
-  }
-
-  .dashboard-content {
-    padding: 14px;
-  }
-
-  .dashboard-error {
-    margin:
-      14px
-      14px
-      0;
-  }
-
-  .dashboard-grid {
-    gap: 12px;
-  }
-
-  .recording-panel,
-  .analysis-progress-panel,
-  .transcript-panel,
-  .context-panel {
-    min-height: 0;
-
-    padding:
-      18px
-      16px;
-
-    border-radius: 12px;
-  }
-
-  .recording-control-row {
-    align-items: flex-start;
-  }
-
-  .record-circle {
-    width: 62px;
-    height: 62px;
-
-    flex-basis: 62px;
-  }
-}
 /* ========================================
    History Page
 ======================================== */
@@ -1714,6 +2127,7 @@ button {
   color: #9698a4;
 
   font-size: 10px;
+
   line-height: 1.6;
 }
 
@@ -1742,7 +2156,7 @@ button {
 
   cursor: pointer;
 
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -1778,10 +2192,14 @@ button {
 
 .history-clear-button:disabled {
   opacity: 0.45;
+
   cursor: not-allowed;
 }
 
-/* 목록 */
+
+/* ========================================
+   History 목록
+======================================== */
 
 .history-list {
   display: flex;
@@ -1819,7 +2237,12 @@ button {
 
   box-shadow:
     0 7px 24px
-    rgba(34, 32, 73, 0.025);
+    rgba(
+      34,
+      32,
+      73,
+      0.025
+    );
 
   transition:
     transform 0.18s ease,
@@ -1835,7 +2258,12 @@ button {
 
   box-shadow:
     0 10px 30px
-    rgba(72, 62, 160, 0.06);
+    rgba(
+      72,
+      62,
+      160,
+      0.06
+    );
 }
 
 .history-item:focus-visible {
@@ -1844,8 +2272,6 @@ button {
 
   outline-offset: 2px;
 }
-
-/* 아이콘 */
 
 .history-item-icon {
   width: 42px;
@@ -1860,8 +2286,6 @@ button {
 
   color: #695be2;
 }
-
-/* 내용 */
 
 .history-item-content {
   min-width: 0;
@@ -1897,7 +2321,7 @@ button {
 
   color: #a0a1aa;
 
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .history-item-content > p {
@@ -1912,7 +2336,8 @@ button {
 
   color: #888a95;
 
-  font-size: 9px;
+  font-size: 10px;
+
   line-height: 1.5;
 }
 
@@ -1940,7 +2365,7 @@ button {
 
   color: #8b8d98;
 
-  font-size: 7.5px;
+  font-size: 8px;
   font-weight: 600;
 }
 
@@ -1951,7 +2376,10 @@ button {
   color: #2c9271;
 }
 
-/* 액션 */
+
+/* ========================================
+   History Actions
+======================================== */
 
 .history-item-actions {
   display: flex;
@@ -1993,7 +2421,10 @@ button {
   color: #c4c5cc;
 }
 
-/* 기록 없음 / 로딩 */
+
+/* ========================================
+   History Empty
+======================================== */
 
 .history-empty {
   min-height: 480px;
@@ -2016,7 +2447,12 @@ button {
 
   box-shadow:
     0 8px 28px
-    rgba(34, 32, 73, 0.025);
+    rgba(
+      34,
+      32,
+      73,
+      0.025
+    );
 }
 
 .history-empty-icon {
@@ -2051,7 +2487,8 @@ button {
 
   color: #9b9da7;
 
-  font-size: 9px;
+  font-size: 10px;
+
   line-height: 1.7;
 }
 
@@ -2071,7 +2508,7 @@ button {
 
   color: #ca4353;
 
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .history-loading-icon {
@@ -2082,62 +2519,7 @@ button {
     infinite;
 }
 
-@keyframes historySpin {
-  from {
-    transform:
-      rotate(0deg);
-  }
 
-  to {
-    transform:
-      rotate(360deg);
-  }
-}
-
-@media (max-width: 720px) {
-  .history-page {
-    padding: 0;
-  }
-
-  .history-header {
-    flex-direction: column;
-
-    gap: 14px;
-  }
-
-  .history-header-actions {
-    width: 100%;
-  }
-
-  .history-refresh-button,
-  .history-clear-button {
-    flex: 1;
-  }
-
-  .history-item {
-    grid-template-columns:
-      40px
-      minmax(0, 1fr);
-  }
-
-  .history-item-actions {
-    grid-column:
-      1 / -1;
-
-    justify-content: flex-end;
-  }
-
-  .history-item-top {
-    flex-direction: column;
-    align-items: flex-start;
-
-    gap: 5px;
-  }
-
-  .history-empty {
-    min-height: 350px;
-  }
-}
 /* ========================================
    Help Page
 ======================================== */
@@ -2221,7 +2603,12 @@ button {
 
   box-shadow:
     0 8px 28px
-    rgba(34, 32, 73, 0.025);
+    rgba(
+      34,
+      32,
+      73,
+      0.025
+    );
 }
 
 .help-guide-icon {
@@ -2241,11 +2628,14 @@ button {
 }
 
 .help-guide-card h3 {
-  margin: 1px 0 0;
+  margin:
+    1px
+    0
+    0;
 
   color: #343640;
 
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .help-guide-card p {
@@ -2256,7 +2646,8 @@ button {
 
   color: #90929d;
 
-  font-size: 9px;
+  font-size: 10px;
+
   line-height: 1.7;
 }
 
@@ -2280,7 +2671,7 @@ button {
 
   color: #454750;
 
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .help-notice p {
@@ -2291,183 +2682,791 @@ button {
 
   color: #92949f;
 
-  font-size: 9px;
+  font-size: 10px;
+
   line-height: 1.7;
 }
 
-@media (max-width: 720px) {
+
+/* ========================================
+   Animation
+======================================== */
+
+@keyframes waveformBounce {
+  from {
+    transform:
+      scaleY(0.45);
+
+    opacity: 0.45;
+  }
+
+  to {
+    transform:
+      scaleY(1);
+
+    opacity: 1;
+  }
+}
+
+@keyframes recordingPulse {
+  0% {
+    box-shadow:
+      0 0 0 0
+      rgba(
+        239,
+        77,
+        95,
+        0.22
+      );
+  }
+
+  70% {
+    box-shadow:
+      0 0 0 7px
+      rgba(
+        239,
+        77,
+        95,
+        0
+      );
+  }
+
+  100% {
+    box-shadow:
+      0 0 0 0
+      rgba(
+        239,
+        77,
+        95,
+        0
+      );
+  }
+}
+
+@keyframes historySpin {
+  from {
+    transform:
+      rotate(0deg);
+  }
+
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+
+/* ========================================
+   태블릿
+======================================== */
+
+@media (
+  max-width: 1100px
+) {
+  .dashboard-shell {
+    grid-template-columns:
+      190px
+      minmax(0, 1fr);
+  }
+
+  .sidebar {
+    width: 190px;
+  }
+
+  .sidebar-brand strong {
+    font-size: 15px;
+  }
+
+  .sidebar-menu-item span,
+  .sidebar-logout span {
+    font-size: 12px;
+  }
+
+  .dashboard-grid {
+    height: auto;
+    min-height: 0;
+
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+  .dashboard-left-column,
+  .dashboard-right-column {
+    width: 100%;
+    height: auto;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 16px;
+  }
+
+  .recording-panel,
+  .analysis-progress-panel,
+  .transcript-panel,
+  .context-panel {
+    height: auto;
+
+    min-height: 360px;
+  }
+
+  .context-empty {
+    min-height: 280px;
+
+    height: auto;
+  }
+}
+
+
+/* ========================================
+   모바일
+======================================== */
+
+@media (
+  max-width: 720px
+) {
+  .dashboard-shell {
+    display: block;
+  }
+
+  .sidebar {
+    position: relative;
+
+    width: 100%;
+    height: auto;
+
+    padding: 14px;
+  }
+
+  .sidebar-brand {
+    padding:
+      0
+      4px
+      14px;
+  }
+
+  .sidebar-brand strong {
+    font-size: 16px;
+  }
+
+  .sidebar-brand p {
+    font-size: 10px;
+  }
+
+  .sidebar-menu {
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
+
+    gap: 6px;
+  }
+
+  .sidebar-menu-item {
+    height: 50px;
+
+    justify-content: center;
+
+    padding:
+      0
+      6px;
+  }
+
+  .sidebar-menu-item span {
+    display: inline;
+
+    font-size: 11px;
+  }
+
+  .sidebar-bottom {
+    display: none;
+  }
+
+  .dashboard-header {
+    height: 70px;
+    min-height: 70px;
+
+    padding:
+      14px
+      18px;
+  }
+
+  .header-title-area {
+    display: block;
+  }
+
+  .header-title-area h1 {
+    font-size: 14px;
+  }
+
+  .recording-status {
+    margin-top: 6px;
+  }
+
+  .header-user-info {
+    display: none;
+  }
+
+  .dashboard-content {
+    padding: 14px;
+  }
+
+  .dashboard-error {
+    margin:
+      14px
+      14px
+      0;
+  }
+
+  .dashboard-grid,
+  .dashboard-left-column,
+  .dashboard-right-column {
+    gap: 12px;
+  }
+
+  .recording-panel,
+  .analysis-progress-panel,
+  .transcript-panel,
+  .context-panel {
+    min-height: 0;
+    height: auto;
+
+    padding:
+      18px
+      16px;
+
+    border-radius: 12px;
+  }
+
+  .recording-control-row {
+    align-items: flex-start;
+  }
+
+  .record-circle {
+    width: 62px;
+    height: 62px;
+
+    flex-basis: 62px;
+  }
+
+  .recording-time-line strong {
+    font-size: 25px;
+  }
+
+  .live-transcript-box {
+    font-size: 14px;
+  }
+
+  .history-page {
+    padding: 0;
+  }
+
+  .history-header {
+    flex-direction: column;
+
+    gap: 14px;
+  }
+
+  .history-header-actions {
+    width: 100%;
+  }
+
+  .history-refresh-button,
+  .history-clear-button {
+    flex: 1;
+  }
+
+  .history-item {
+    grid-template-columns:
+      40px
+      minmax(0, 1fr);
+  }
+
+  .history-item-actions {
+    grid-column:
+      1 / -1;
+
+    justify-content: flex-end;
+  }
+
+  .history-item-top {
+    flex-direction: column;
+    align-items: flex-start;
+
+    gap: 5px;
+  }
+
+  .history-empty {
+    min-height: 350px;
+  }
+
   .help-guide-grid {
     grid-template-columns:
       1fr;
   }
 }
-/* ========================================
-   Context selection editor
-======================================== */
 
-.context-selection-editor {
-  margin-top: 16px;
-  padding: 16px;
-  border: 1px solid #e6e8ef;
-  border-radius: 14px;
-  background: #fafaff;
+.analysis-progress-panel h2 {
+  transform: translateX(-60px) !important;
 }
 
-.context-edit-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 14px;
-  margin-bottom: 10px;
+/* =========================================================
+   오른쪽 패널 전체 디자인 보정
+   - 분석 진행 상태
+   - AI 맥락 후보 분석
+   - 왼쪽 패널에는 영향 없음
+========================================================= */
+
+
+/* =========================================================
+   1. 분석 진행 상태 카드
+========================================================= */
+
+.analysis-progress-panel {
+  padding:
+    24px
+    22px
+    22px;
 }
 
-.context-edit-header strong {
-  font-size: 14px;
-  color: #252631;
+
+/* 상단 제목 영역 */
+.analysis-progress-panel .panel-heading-row {
+  align-items: flex-start;
 }
 
-.context-edit-header button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 
-  padding: 7px 11px;
+/* "분석 진행 상태" */
+.analysis-progress-panel .panel-heading-row h2 {
+  margin: 0;
 
-  border: 1px solid #d9dcef;
-  border-radius: 8px;
+  position: relative;
 
-  background: #ffffff;
-  color: #5d5f73;
+  /* 제목만 살짝 왼쪽 */
+  left: -4px;
 
-  font-size: 12px;
-  font-weight: 600;
+  transform: none !important;
 
-  cursor: pointer;
+  color: #20222b;
+
+  font-size: 18px;
+  font-weight: 700;
+
+  line-height: 1.35;
 }
 
-.context-edit-header button:hover {
-  background: #f4f2ff;
-  border-color: #c9c2ff;
-}
 
-.context-selected-preview {
-  padding: 12px 14px;
+/* 제목 아래 설명 */
+.analysis-progress-panel .panel-heading-row p {
+  margin:
+    8px
+    0
+    0;
 
-  border: 1px solid #ebeaf3;
-  border-radius: 10px;
+  color: #989aa5;
 
-  background: #ffffff;
+  font-size: 11px;
 
-  color: #4d4f5f;
-  font-size: 13px;
   line-height: 1.6;
 }
 
-.context-edit-area {
-  display: flex;
-  flex-direction: column;
+
+/* 우측 분석 대기 / 분석 중 / 완료 배지 */
+.analysis-progress-panel .analysis-badge {
+  gap: 7px;
+
+  padding:
+    8px
+    12px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   원형 진행률
+========================================================= */
+
+.analysis-progress-panel .progress-circle-wrapper {
+  margin-top: 28px;
+}
+
+
+/* 원 크기 */
+.analysis-progress-panel .progress-circle {
+  width: 160px;
+  height: 160px;
+}
+
+
+/* 안쪽 흰색 공간 */
+.analysis-progress-panel .progress-circle::after {
+  inset: 13px;
+}
+
+
+/* 가운데 0% */
+.analysis-progress-panel .progress-circle-inner strong {
+  font-size: 30px;
+  font-weight: 700;
+
+  line-height: 1;
+}
+
+
+/* =========================================================
+   진행률 하단
+========================================================= */
+
+.analysis-progress-panel .progress-bottom {
+  margin-top: 28px;
+}
+
+
+/* "분석 진행률" + 오른쪽 0% */
+.analysis-progress-panel .progress-label-row {
+  font-size: 11px;
+
+  line-height: 1.4;
+}
+
+
+/* 오른쪽 0% */
+.analysis-progress-panel .progress-label-row strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+
+/* 진행 바 */
+.analysis-progress-panel .progress-bar {
+  height: 7px;
+
+  margin-top: 10px;
+}
+
+
+/* 맨 아래 상태 문구 */
+.analysis-progress-panel .analysis-status-text {
+  margin:
+    12px
+    0
+    0;
+
+  color: #9a9ca7;
+
+  font-size: 10.5px;
+
+  line-height: 1.55;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+   2. AI 맥락 후보 분석 카드
+========================================================= */
+
+.context-panel {
+  padding:
+    24px
+    22px
+    22px;
+}
+
+
+/* 제목 */
+.context-panel .panel-heading-row h2 {
+  margin: 0;
+
+  color: #20222b;
+
+  font-size: 18px;
+  font-weight: 700;
+
+  line-height: 1.35;
+}
+
+
+/* 제목 아래 설명 */
+.context-panel .panel-heading-row p {
+  margin:
+    8px
+    0
+    0;
+
+  color: #989aa5;
+
+  font-size: 11px;
+
+  line-height: 1.6;
+}
+
+
+/* 제목 앞 아이콘과 제목 간격 */
+.context-panel .panel-title-with-icon {
+  gap: 9px;
+}
+
+
+/* =========================================================
+   맥락이 없을 때 중앙 영역
+========================================================= */
+
+.context-panel .context-empty {
+  min-height: 220px;
+
+  padding:
+    20px
+    10px;
+}
+
+
+/* 가운데 뇌 아이콘 */
+.context-panel .context-empty svg {
+  width: 38px;
+  height: 38px;
+
+  margin-bottom: 14px;
+
+  color: #c2c3cb;
+}
+
+
+/* "아직 분석된 맥락이 없습니다" */
+.context-panel .context-empty strong {
+  color: #777985;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  line-height: 1.5;
+}
+
+
+/* 아래 설명 */
+.context-panel .context-empty p {
+  max-width: 350px;
+
+  margin:
+    9px
+    0
+    0;
+
+  color: #a3a4ae;
+
+  font-size: 10.5px;
+
+  line-height: 1.7;
+}
+
+
+/* =========================================================
+   맥락 후보가 생성됐을 때
+========================================================= */
+
+.context-panel .context-list {
+  margin-top: 20px;
+
   gap: 10px;
 }
 
-.context-edit-area textarea {
-  width: 100%;
-  min-height: 90px;
 
-  padding: 12px 14px;
+/* 후보 카드 */
+.context-panel .context-candidate {
+  grid-template-columns:
+    34px
+    minmax(0, 1fr)
+    26px;
 
-  border: 1px solid #dfe1ea;
-  border-radius: 10px;
+  gap: 11px;
 
-  resize: vertical;
+  padding:
+    15px
+    14px;
 
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.6;
-
-  outline: none;
-
-  box-sizing: border-box;
+  border-radius: 11px;
 }
 
-.context-edit-area textarea:focus {
-  border-color: #7567f8;
-  box-shadow: 0 0 0 3px rgba(117, 103, 248, 0.08);
-}
 
-.context-edit-area button {
-  align-self: flex-end;
+/* 후보 번호 */
+.context-panel .context-rank {
+  width: 30px;
+  height: 30px;
 
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  font-size: 10px;
 
-  padding: 8px 13px;
-
-  border: none;
   border-radius: 8px;
-
-  background: #6d5df6;
-  color: white;
-
-  font-size: 12px;
-  font-weight: 600;
-
-  cursor: pointer;
 }
 
-.context-edit-area button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
-.context-resolve-button {
-  width: 100%;
-
-  margin-top: 14px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-
-  padding: 11px 14px;
-
-  border: none;
-  border-radius: 10px;
-
-  background: #6d5df6;
-  color: white;
-
-  font-size: 13px;
+/* 후보 제목 */
+.context-panel .context-candidate-title-row strong {
+  font-size: 11px;
   font-weight: 700;
 
-  cursor: pointer;
+  line-height: 1.45;
 }
 
-.context-resolve-button:hover {
-  background: #5d4be9;
+
+/* BEST 같은 배지 */
+.context-panel .best-context-badge {
+  padding:
+    4px
+    6px;
+
+  font-size: 8px;
 }
 
-.context-resolve-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+
+/* 후보 설명 */
+.context-panel .context-candidate-content p {
+  margin:
+    6px
+    0
+    0;
+
+  font-size: 9.5px;
+
+  line-height: 1.6;
 }
 
-.context-resolved-message {
+
+/* 신뢰도 영역 */
+.context-panel .context-confidence-area {
+  margin-top: 10px;
+
+  gap: 9px;
+}
+
+
+/* 신뢰도 바 */
+.context-panel .context-confidence-bar {
+  height: 5px;
+}
+
+
+/* 신뢰도 % */
+.context-panel .context-confidence-area span {
+  min-width: 34px;
+
+  font-size: 9.5px;
+}
+
+
+/* 선택 원 */
+.context-panel .context-select-circle {
+  width: 22px;
+  height: 22px;
+}
+
+
+/* =========================================================
+   선택된 맥락 메시지
+========================================================= */
+
+.context-panel .selected-context-message {
+  margin-top: 13px;
+
+  gap: 8px;
+
+  padding:
+    11px
+    12px;
+
+  font-size: 10px;
+}
+
+
+/* =========================================================
+   맥락 수정 영역
+========================================================= */
+
+.context-panel .context-selection-editor {
+  margin-top: 13px;
+
+  padding: 14px;
+}
+
+
+.context-panel .context-edit-header strong {
+  font-size: 12px;
+}
+
+
+.context-panel .context-edit-header button {
+  padding:
+    7px
+    10px;
+
+  font-size: 9.5px;
+}
+
+
+.context-panel .context-selected-preview {
+  padding:
+    11px
+    12px;
+
+  font-size: 10px;
+
+  line-height: 1.65;
+}
+
+
+.context-panel .context-edit-area textarea {
+  min-height: 95px;
+
+  padding:
+    11px
+    12px;
+
+  font-size: 10.5px;
+
+  line-height: 1.65;
+}
+
+
+.context-panel .context-edit-area button {
+  padding:
+    8px
+    12px;
+
+  font-size: 10px;
+}
+
+
+/* 맥락 확정 버튼 */
+.context-panel .context-resolve-button {
   margin-top: 12px;
 
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  padding:
+    10px
+    12px;
 
-  padding: 12px 14px;
+  font-size: 10.5px;
+}
 
-  border-radius: 10px;
 
-  background: #eefaf3;
-  color: #2f8f5b;
+/* 확정 완료 문구 */
+.context-panel .context-resolved-message {
+  margin-top: 11px;
 
-  font-size: 13px;
-  font-weight: 600;
+  padding:
+    11px
+    12px;
+
+  font-size: 10px;
+}
+
+.analysis-progress-panel h2 {
+  transform: translateX(-50px) !important;
 }
