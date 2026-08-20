@@ -4,7 +4,7 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 function TranscriptPanel({
   transcript = "",
@@ -14,12 +14,6 @@ function TranscriptPanel({
   const [isEditing, setIsEditing] = useState(false);
   const [editedTranscript, setEditedTranscript] =
     useState(transcript);
-
-  // 백엔드에서 새로운 STT 결과가 들어오면
-  // 수정용 텍스트도 같이 갱신
-  useEffect(() => {
-    setEditedTranscript(transcript);
-  }, [transcript]);
 
   // =========================
   // 수정 시작
