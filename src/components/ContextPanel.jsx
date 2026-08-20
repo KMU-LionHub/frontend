@@ -18,6 +18,7 @@ function ContextPanel({
   onResolveContext,
   analysisCompleted = false,
   isAnalyzing = false,
+  awaitingTranscriptReview = false,
 }) {
   // ========================================
   // 점수 높은 순으로 정렬
@@ -328,6 +329,22 @@ function ContextPanel({
               현재 발언은 문맥만으로 충분히
               해석할 수 있어 별도의 맥락
               후보가 생성되지 않았습니다.
+            </p>
+          </div>
+        ) : awaitingTranscriptReview ? (
+          <div className="context-empty">
+            <BrainCircuit
+              size={32}
+              strokeWidth={1.4}
+            />
+
+            <strong>
+              전사 내용을 먼저 검토해주세요
+            </strong>
+
+            <p>
+              잘못 인식된 단어를 수정한 뒤 AI 분석
+              시작 버튼을 누르면 맥락 후보가 표시됩니다.
             </p>
           </div>
         ) : (

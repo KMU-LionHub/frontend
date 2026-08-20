@@ -28,6 +28,14 @@ import {
   apiRequest,
   subscribeToAuthExpiration,
 } from "./api/apiClient";
+import {
+  correctTranscriptionWord,
+  createTranscription,
+  rerecordTranscription,
+} from "./api/transcriptionApi";
+import {
+  replaceUtteranceTranscription,
+} from "./api/conversationApi";
 
 import {
   saveConversation,
@@ -37,6 +45,7 @@ import {
   isProcessingPhase,
   isRecordingPhase,
   RecordingAction,
+  RecordingMode,
   RecordingPhase,
   recordingWorkflowReducer,
 } from "./workflow/recordingWorkflow";
@@ -92,6 +101,7 @@ function App() {
     phase: analysisStatus,
     progress: analysisProgress,
     elapsedTime,
+    mode: recordingMode,
   } = recordingWorkflow;
 
   const isRecording =
@@ -103,6 +113,10 @@ function App() {
     isProcessingPhase(
       analysisStatus
     );
+
+  const isRerecording =
+    recordingMode ===
+    RecordingMode.RERECORD;
 
   const mediaRecorderRef =
     useRef(null);
@@ -123,6 +137,9 @@ function App() {
     useRef(null);
 
   const recordedDurationRef =
+    useRef(0);
+
+  const previousDurationRef =
     useRef(0);
 
   const recordingAttemptRef =
@@ -185,8 +202,8 @@ function App() {
   ] = useState([]);
 
   const [
-    annotations,
-    setAnnotations,
+    transcriptWords,
+    setTranscriptWords,
   ] = useState([]);
 
   const [
@@ -232,6 +249,8 @@ function App() {
           null;
         recordedDurationRef.current =
           0;
+        previousDurationRef.current =
+          0;
 
         setCurrentUser(null);
         setIsLoggedIn(false);
@@ -243,7 +262,7 @@ function App() {
         setAnalysisId(null);
         setTranscript("");
         setContexts([]);
-        setAnnotations([]);
+        setTranscriptWords([]);
         setSelectedContextId(null);
         setError("");
 
@@ -352,7 +371,9 @@ function App() {
   // ========================================
 
   const startRecording =
-    async () => {
+    async (
+      mode = RecordingMode.NEW
+    ) => {
       if (
         operationLockRef.current ||
         isProcessing ||
@@ -361,8 +382,25 @@ function App() {
         return;
       }
 
+      if (
+        mode ===
+          RecordingMode.RERECORD &&
+        (
+          transcriptionId == null ||
+          conversationId == null ||
+          utteranceId == null
+        )
+      ) {
+        setError(
+          "재발언할 전사 정보를 찾을 수 없습니다."
+        );
+        return;
+      }
+
       operationLockRef.current =
         true;
+      previousDurationRef.current =
+        elapsedTime;
       const attemptId =
         recordingAttemptRef.current +
         1;
@@ -374,6 +412,7 @@ function App() {
       dispatchRecording({
         type:
           RecordingAction.REQUEST_PERMISSION,
+        mode,
       });
 
       try {
@@ -488,7 +527,8 @@ function App() {
             try {
               await processRecording(
                 blob,
-                recordedDurationRef.current
+                recordedDurationRef.current,
+                mode
               );
             } finally {
               chunksRef.current = [];
@@ -503,7 +543,11 @@ function App() {
 
         recorder.start();
 
-        resetAnalysisResult();
+        if (
+          mode === RecordingMode.NEW
+        ) {
+          resetAnalysisResult();
+        }
 
         recordingStartedAtRef.current =
           new Date().getTime();
@@ -534,9 +578,20 @@ function App() {
         operationLockRef.current =
           false;
 
-        dispatchRecording({
-          type: RecordingAction.FAIL,
-        });
+        dispatchRecording(
+          mode ===
+            RecordingMode.RERECORD
+            ? {
+                type:
+                  RecordingAction.READY_FOR_REVIEW,
+                elapsedTime:
+                  previousDurationRef.current,
+              }
+            : {
+                type:
+                  RecordingAction.FAIL,
+              }
+        );
 
         setError(
           err.message ||
@@ -610,7 +665,37 @@ function App() {
         return;
       }
 
-      startRecording();
+      startRecording(
+        RecordingMode.NEW
+      );
+    };
+
+  const handleRerecordButton =
+    () => {
+      const recorder =
+        mediaRecorderRef.current;
+
+      if (
+        recorder?.state ===
+          "recording" &&
+        isRerecording
+      ) {
+        stopRecording();
+        return;
+      }
+
+      if (
+        recorder?.state ===
+          "recording" ||
+        operationLockRef.current ||
+        isProcessing
+      ) {
+        return;
+      }
+
+      startRecording(
+        RecordingMode.RERECORD
+      );
     };
 
   // ========================================
@@ -620,16 +705,25 @@ function App() {
   const processRecording =
     async (
       blob,
-      elapsedTimeValue
+      elapsedTimeValue,
+      mode
     ) => {
       try {
         setError("");
 
-        // 1. STT
+        const isReplacement =
+          mode ===
+          RecordingMode.RERECORD;
+
         const transcription =
-          await createTranscription(
-            blob
-          );
+          isReplacement
+            ? await rerecordTranscription({
+                transcriptionId,
+                audioBlob: blob,
+              })
+            : await createTranscription(
+                blob
+              );
 
         const newTranscriptionId =
           transcription.id;
@@ -642,16 +736,10 @@ function App() {
           );
         }
 
-        setTranscriptionId(
-          newTranscriptionId
-        );
-
         const text =
           transcription.currentText ||
           transcription.originalText ||
           "";
-
-        setTranscript(text);
 
         const words =
           Array.isArray(
@@ -660,14 +748,56 @@ function App() {
             ? transcription.words
             : [];
 
-        setAnnotations(words);
-
         dispatchRecording({
           type:
             RecordingAction.TRANSCRIPTION_COMPLETE,
         });
 
-        // 2. 대화 생성
+        if (isReplacement) {
+          await replaceUtteranceTranscription({
+            conversationId,
+            utteranceId,
+            transcriptionId:
+              newTranscriptionId,
+          });
+
+          setTranscriptionId(
+            newTranscriptionId
+          );
+          setTranscript(text);
+          setTranscriptWords(words);
+          setAnalysisId(null);
+          setContexts([]);
+          setSelectedContextId(null);
+
+          await persistConversation({
+            transcriptionIdValue:
+              newTranscriptionId,
+            analysisIdValue: null,
+            transcriptValue: text,
+            contextsValue: [],
+            transcriptWordsValue: words,
+            selectedContextIdValue:
+              null,
+            elapsedTimeValue:
+              elapsedTimeValue,
+          });
+
+          dispatchRecording({
+            type:
+              RecordingAction.READY_FOR_REVIEW,
+            elapsedTime:
+              elapsedTimeValue,
+          });
+          return;
+        }
+
+        setTranscriptionId(
+          newTranscriptionId
+        );
+        setTranscript(text);
+        setTranscriptWords(words);
+
         const conversation =
           await createConversation();
 
@@ -686,7 +816,6 @@ function App() {
           newConversationId
         );
 
-        // SELF 참여자 찾기
         const selfParticipant =
           findSelfParticipant(
             conversation,
@@ -701,7 +830,6 @@ function App() {
           );
         }
 
-        // 3. 발언 생성
         const utterance =
           await createUtterance({
             conversationId:
@@ -729,52 +857,6 @@ function App() {
           newUtteranceId
         );
 
-        // 4. AI 분석
-        dispatchRecording({
-          type:
-            RecordingAction.START_ANALYSIS,
-        });
-
-        const analysis =
-          await createContextAnalysis({
-            conversationId:
-              newConversationId,
-
-            utteranceId:
-              newUtteranceId,
-          });
-
-        const newAnalysisId =
-          analysis.id;
-
-        setAnalysisId(
-          newAnalysisId
-        );
-
-        const normalizedContexts =
-          normalizeContextCandidates(
-            analysis
-          );
-
-        setContexts(
-          normalizedContexts
-        );
-
-        const alreadySelected =
-          normalizedContexts.find(
-            (context) =>
-              context.selected
-          );
-
-        const newSelectedContextId =
-          alreadySelected?.id ??
-          null;
-
-        setSelectedContextId(
-          newSelectedContextId
-        );
-
-        // 5. 기록 저장
         await persistConversation({
           conversationIdValue:
             newConversationId,
@@ -785,20 +867,17 @@ function App() {
           utteranceIdValue:
             newUtteranceId,
 
-          analysisIdValue:
-            newAnalysisId,
+          analysisIdValue: null,
 
           transcriptValue:
             text,
 
-          contextsValue:
-            normalizedContexts,
+          contextsValue: [],
 
-          annotationsValue:
+          transcriptWordsValue:
             words,
 
-          selectedContextIdValue:
-            newSelectedContextId,
+          selectedContextIdValue: null,
 
           elapsedTimeValue:
             elapsedTimeValue,
@@ -806,7 +885,9 @@ function App() {
 
         dispatchRecording({
           type:
-            RecordingAction.COMPLETE,
+            RecordingAction.READY_FOR_REVIEW,
+          elapsedTime:
+            elapsedTimeValue,
         });
       } catch (err) {
         console.error(
@@ -814,41 +895,26 @@ function App() {
           err
         );
 
-        dispatchRecording({
-          type: RecordingAction.FAIL,
-        });
+        dispatchRecording(
+          mode ===
+            RecordingMode.RERECORD
+            ? {
+                type:
+                  RecordingAction.READY_FOR_REVIEW,
+                elapsedTime:
+                  previousDurationRef.current,
+              }
+            : {
+                type:
+                  RecordingAction.FAIL,
+              }
+        );
 
         setError(
           err.message ||
             "녹음 처리 중 오류가 발생했습니다."
         );
       }
-    };
-
-  // ========================================
-  // STT
-  // ========================================
-
-  const createTranscription =
-    async (blob) => {
-      const formData =
-        new FormData();
-
-      formData.append(
-        "audio",
-        blob,
-        "recording.webm"
-      );
-
-      return apiRequest(
-        "/api/stt/transcriptions",
-        {
-          method: "POST",
-          body: formData,
-          defaultErrorMessage:
-            "음성을 텍스트로 변환하지 못했습니다.",
-        }
-      );
     };
 
   // ========================================
@@ -935,6 +1001,108 @@ function App() {
     };
 
   // ========================================
+  // 전사 검토 후 AI 분석 시작
+  // ========================================
+
+  const handleAnalyzeTranscript =
+    async () => {
+      if (
+        operationLockRef.current ||
+        isProcessing ||
+        isRecording
+      ) {
+        return;
+      }
+
+      if (
+        conversationId == null ||
+        utteranceId == null ||
+        transcriptionId == null
+      ) {
+        setError(
+          "분석할 전사 정보를 찾을 수 없습니다."
+        );
+        return;
+      }
+
+      operationLockRef.current =
+        true;
+      setError("");
+
+      dispatchRecording({
+        type:
+          RecordingAction.START_ANALYSIS,
+      });
+
+      try {
+        const analysis =
+          await createContextAnalysis({
+            conversationId,
+            utteranceId,
+          });
+
+        if (analysis.id == null) {
+          throw new Error(
+            "분석 ID를 받지 못했습니다."
+          );
+        }
+
+        const normalizedContexts =
+          normalizeContextCandidates(
+            analysis
+          );
+        const alreadySelected =
+          normalizedContexts.find(
+            (context) =>
+              context.selected
+          );
+        const newSelectedContextId =
+          alreadySelected?.id ??
+          null;
+
+        setAnalysisId(analysis.id);
+        setContexts(
+          normalizedContexts
+        );
+        setSelectedContextId(
+          newSelectedContextId
+        );
+
+        await persistConversation({
+          analysisIdValue:
+            analysis.id,
+          contextsValue:
+            normalizedContexts,
+          selectedContextIdValue:
+            newSelectedContextId,
+        });
+
+        dispatchRecording({
+          type:
+            RecordingAction.COMPLETE,
+        });
+      } catch (err) {
+        console.error(
+          "맥락 분석 실패:",
+          err
+        );
+
+        dispatchRecording({
+          type:
+            RecordingAction.READY_FOR_REVIEW,
+        });
+
+        setError(
+          err.message ||
+            "발언의 맥락을 분석하지 못했습니다."
+        );
+      } finally {
+        operationLockRef.current =
+          false;
+      }
+    };
+
+  // ========================================
   // IndexedDB 저장
   // ========================================
 
@@ -958,8 +1126,8 @@ function App() {
       contextsValue =
         contexts,
 
-      annotationsValue =
-        annotations,
+      transcriptWordsValue =
+        transcriptWords,
 
       selectedContextIdValue =
         selectedContextId,
@@ -1003,9 +1171,9 @@ function App() {
 
           annotations:
             Array.isArray(
-              annotationsValue
+              transcriptWordsValue
             )
-              ? annotationsValue
+              ? transcriptWordsValue
               : [],
 
           selectedContextId:
@@ -1029,21 +1197,116 @@ function App() {
     };
 
   // ========================================
-  // 발언 수정
+  // 단어 교정
   // ========================================
 
-  const handleTranscriptSave =
+  const handleCorrectWord =
     async (
-      updatedTranscript
+      wordId,
+      correctedText
     ) => {
-      setTranscript(
-        updatedTranscript
-      );
+      if (
+        transcriptionId == null
+      ) {
+        throw new Error(
+          "수정할 전사 정보를 찾을 수 없습니다."
+        );
+      }
 
-      await persistConversation({
-        transcriptValue:
-          updatedTranscript,
+      if (
+        operationLockRef.current ||
+        isProcessing ||
+        isRecording
+      ) {
+        throw new Error(
+          "진행 중인 작업이 끝난 뒤 다시 시도해주세요."
+        );
+      }
+
+      const text = String(
+        correctedText || ""
+      ).trim();
+
+      if (!text) {
+        throw new Error(
+          "수정할 단어를 입력해주세요."
+        );
+      }
+
+      operationLockRef.current =
+        true;
+      setError("");
+
+      dispatchRecording({
+        type:
+          RecordingAction.START_TRANSCRIPT_UPDATE,
       });
+
+      try {
+        const updatedTranscription =
+          await correctTranscriptionWord({
+            transcriptionId,
+            wordId,
+            text,
+          });
+
+        const updatedText =
+          updatedTranscription.currentText ||
+          updatedTranscription.originalText ||
+          "";
+        const updatedWords =
+          Array.isArray(
+            updatedTranscription.words
+          )
+            ? updatedTranscription.words
+            : [];
+
+        setTranscript(updatedText);
+        setTranscriptWords(
+          updatedWords
+        );
+        setAnalysisId(null);
+        setContexts([]);
+        setSelectedContextId(null);
+
+        await persistConversation({
+          analysisIdValue: null,
+          transcriptValue: updatedText,
+          contextsValue: [],
+          transcriptWordsValue:
+            updatedWords,
+          selectedContextIdValue:
+            null,
+        });
+
+        dispatchRecording({
+          type:
+            RecordingAction.READY_FOR_REVIEW,
+        });
+
+        return updatedTranscription;
+      } catch (err) {
+        console.error(
+          "단어 수정 실패:",
+          err
+        );
+
+        dispatchRecording({
+          type:
+            RecordingAction.READY_FOR_REVIEW,
+        });
+
+        setError(
+          err.message ||
+            "단어를 수정하지 못했습니다."
+        );
+
+        throw err;
+      } finally {
+        operationLockRef.current =
+          false;
+      }
+
     };
 
   // ========================================
@@ -1415,7 +1678,7 @@ function App() {
           : []
       );
 
-      setAnnotations(
+      setTranscriptWords(
         Array.isArray(
           conversation.annotations
         )
@@ -1457,13 +1720,23 @@ function App() {
           null
       );
 
-      dispatchRecording({
-        type:
-          RecordingAction.RESTORE_COMPLETED,
-        elapsedTime:
-          conversation.elapsedTime ??
-          0,
-      });
+      dispatchRecording(
+        conversation.analysisId == null
+          ? {
+              type:
+                RecordingAction.READY_FOR_REVIEW,
+              elapsedTime:
+                conversation.elapsedTime ??
+                0,
+            }
+          : {
+              type:
+                RecordingAction.RESTORE_COMPLETED,
+              elapsedTime:
+                conversation.elapsedTime ??
+                0,
+            }
+      );
 
       setError("");
 
@@ -1502,7 +1775,7 @@ function App() {
 
       setContexts([]);
 
-      setAnnotations([]);
+      setTranscriptWords([]);
 
       setSelectedContextId(
         null
@@ -1540,6 +1813,8 @@ function App() {
       recordingStartedAtRef.current =
         null;
       recordedDurationRef.current =
+        0;
+      previousDurationRef.current =
         0;
 
       resetAnalysisResult();
@@ -1614,12 +1889,8 @@ function App() {
               ?.email
           }
 
-          isRecording={
-            isRecording
-          }
-
-          isProcessing={
-            isProcessing
+          workflowStatus={
+            analysisStatus
           }
 
           onLogout={
@@ -1672,16 +1943,50 @@ function App() {
                 />
 
                 <TranscriptPanel
+                  key={
+                    transcriptionId ??
+                    "no-transcription"
+                  }
+
                   transcript={
                     transcript
                   }
 
-                  annotations={
-                    annotations
+                  words={
+                    transcriptWords
                   }
 
-                  onTranscriptSave={
-                    handleTranscriptSave
+                  analysisStatus={
+                    analysisStatus
+                  }
+
+                  isRecording={
+                    isRecording
+                  }
+
+                  isRerecording={
+                    isRerecording
+                  }
+
+                  isProcessing={
+                    isProcessing
+                  }
+
+                  canAnalyze={
+                    analysisStatus ===
+                    RecordingPhase.REVIEWING_TRANSCRIPT
+                  }
+
+                  onCorrectWord={
+                    handleCorrectWord
+                  }
+
+                  onRerecordToggle={
+                    handleRerecordButton
+                  }
+
+                  onAnalyze={
+                    handleAnalyzeTranscript
                   }
                 />
               </div>
@@ -1736,6 +2041,11 @@ function App() {
                   isAnalyzing={
                     analysisStatus ===
                     RecordingPhase.ANALYZING
+                  }
+
+                  awaitingTranscriptReview={
+                    analysisStatus ===
+                    RecordingPhase.REVIEWING_TRANSCRIPT
                   }
                 />
               </div>

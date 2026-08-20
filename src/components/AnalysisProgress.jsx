@@ -69,7 +69,7 @@ function AnalysisProgress({
       {/* 아래 진행률 */}
       <div className="progress-bottom">
         <div className="progress-label-row">
-          <span>분석 진행률</span>
+          <span>처리 진행률</span>
 
           <strong>
             {Math.round(safeProgress)}%
@@ -104,8 +104,14 @@ function getStatusText(status) {
     case "TRANSCRIBING":
       return "음성 인식 중";
 
-    case "PREPARING_ANALYSIS":
-      return "분석 준비 중";
+    case "PREPARING_TRANSCRIPT":
+      return "전사 준비 중";
+
+    case "REVIEWING_TRANSCRIPT":
+      return "전사 검토";
+
+    case "UPDATING_TRANSCRIPT":
+      return "단어 수정 중";
 
     case "ANALYZING":
       return "AI 분석 중";
@@ -132,8 +138,14 @@ function getDetailedStatus(status) {
     case "TRANSCRIBING":
       return "음성을 텍스트로 변환하고 있습니다.";
 
-    case "PREPARING_ANALYSIS":
+    case "PREPARING_TRANSCRIPT":
       return "전사 결과를 대화 발언으로 준비하고 있습니다.";
+
+    case "REVIEWING_TRANSCRIPT":
+      return "단어를 확인한 뒤 AI 맥락 분석을 시작해주세요.";
+
+    case "UPDATING_TRANSCRIPT":
+      return "수정한 단어를 전사에 반영하고 있습니다.";
 
     case "ANALYZING":
       return "발언의 의미와 맥락 후보를 분석하고 있습니다.";
@@ -145,7 +157,7 @@ function getDetailedStatus(status) {
       return "분석 처리 중 문제가 발생했습니다.";
 
     default:
-      return "녹음을 완료하면 AI 분석이 시작됩니다.";
+      return "녹음을 완료하면 전사 검토 단계로 이동합니다.";
   }
 }
 

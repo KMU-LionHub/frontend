@@ -280,7 +280,7 @@ function HistoryPage({
           </strong>
 
           <p>
-            대화를 녹음하고 AI 분석이
+            대화를 녹음하고 STT 처리가
             완료되면 이곳에 기록이
             저장됩니다.
           </p>
@@ -367,7 +367,7 @@ function HistoryPage({
                     </span>
 
                     <span>
-                      주석{" "}
+                      단어{" "}
                       {
                         conversation
                           .annotations
