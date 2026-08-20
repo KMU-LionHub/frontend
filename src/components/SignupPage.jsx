@@ -1,41 +1,17 @@
 import { useState } from "react";
 import { signup } from "../api/authApi";
+import "./AuthPage.css";
 
 function SignupPage({ onGoLogin }) {
-  // =========================
-  // 입력값
-  // =========================
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const [email, setEmail] =
-    useState("");
-
-  const [password, setPassword] =
-    useState("");
-
-  const [nickname, setNickname] =
-    useState("");
-
-  // =========================
-  // 상태
-  // =========================
-
-  const [error, setError] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(false);
-
-  // =========================
-  // 회원가입
-  // =========================
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // 기존 오류 제거
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError("");
-
-    // 중복 클릭 방지
     setLoading(true);
 
     try {
@@ -45,20 +21,12 @@ function SignupPage({ onGoLogin }) {
         nickname
       );
 
-      alert(
+      window.alert(
         "회원가입이 완료되었습니다."
       );
-
-      // 회원가입 성공하면 로그인 화면으로 이동
-      onGoLogin();
+      onGoLogin?.();
     } catch (err) {
-      console.error(
-        "회원가입 실패:",
-        err
-      );
-
-      // authApi.js에서 throw한
-      // 실제 백엔드 오류 메시지 표시
+      console.error("회원가입 실패:", err);
       setError(
         err.message ||
           "회원가입에 실패했습니다."
@@ -69,113 +37,114 @@ function SignupPage({ onGoLogin }) {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        {/* 로고 */}
-
-        <div style={styles.logo}>
+    <div className="auth-page">
+      <main
+        className="auth-card"
+        aria-labelledby="signup-title"
+      >
+        <header className="auth-card-header">
           <div
-            style={styles.logoCircle}
-          />
-        </div>
+            className="auth-logo"
+            aria-hidden="true"
+          >
+            <span />
+          </div>
 
-        {/* 제목 */}
+          <h1 id="signup-title">
+            회원가입
+          </h1>
 
-        <h1 style={styles.title}>
-          회원가입
-        </h1>
-
-        <p style={styles.subtitle}>
-          Context STT 계정을 생성합니다.
-        </p>
-
-        {/* 회원가입 폼 */}
+          <p>Context STT 계정을 생성합니다.</p>
+        </header>
 
         <form
+          className="auth-form"
           onSubmit={handleSubmit}
-          style={styles.form}
         >
-          {/* 이메일 */}
+          <div className="auth-field">
+            <label htmlFor="signup-email">
+              이메일
+            </label>
 
-          <label style={styles.label}>
-            이메일
-          </label>
+            <input
+              id="signup-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              value={email}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
+              placeholder="user@example.com"
+              maxLength={100}
+              required
+            />
+          </div>
 
-          <input
-            type="email"
-            value={email}
-            onChange={(e) =>
-              setEmail(e.target.value)
-            }
-            placeholder="user@example.com"
-            style={styles.input}
-            required
-          />
+          <div className="auth-field">
+            <label htmlFor="signup-password">
+              비밀번호
+            </label>
 
-          {/* 비밀번호 */}
+            <input
+              id="signup-password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              placeholder="비밀번호"
+              aria-describedby="signup-password-hint"
+              minLength={8}
+              maxLength={64}
+              required
+            />
 
-          <label style={styles.label}>
-            비밀번호
-          </label>
+            <p
+              id="signup-password-hint"
+              className="auth-field-hint"
+            >
+              8~64자, 영문과 숫자를 포함해주세요.
+            </p>
+          </div>
 
-          <input
-            type="password"
-            value={password}
-            onChange={(e) =>
-              setPassword(
-                e.target.value
-              )
-            }
-            placeholder="비밀번호"
-            style={styles.input}
-            required
-          />
+          <div className="auth-field">
+            <label htmlFor="signup-nickname">
+              닉네임
+            </label>
 
-          {/* 닉네임 */}
-
-          <label style={styles.label}>
-            닉네임
-          </label>
-
-          <input
-            type="text"
-            value={nickname}
-            onChange={(e) =>
-              setNickname(
-                e.target.value
-              )
-            }
-            placeholder="닉네임"
-            style={styles.input}
-            required
-          />
-
-          {/* =====================
-              에러 메시지
-          ====================== */}
+            <input
+              id="signup-nickname"
+              name="nickname"
+              type="text"
+              autoComplete="nickname"
+              value={nickname}
+              onChange={(event) =>
+                setNickname(event.target.value)
+              }
+              placeholder="닉네임"
+              minLength={2}
+              maxLength={20}
+              required
+            />
+          </div>
 
           {error && (
-            <div style={styles.error}>
+            <div
+              className="auth-error"
+              role="alert"
+            >
               {error}
             </div>
           )}
 
-          {/* 회원가입 버튼 */}
-
           <button
             type="submit"
+            className="auth-submit-button"
             disabled={loading}
-            style={{
-              ...styles.button,
-
-              opacity: loading
-                ? 0.7
-                : 1,
-
-              cursor: loading
-                ? "not-allowed"
-                : "pointer",
-            }}
           >
             {loading
               ? "가입 중..."
@@ -183,184 +152,16 @@ function SignupPage({ onGoLogin }) {
           </button>
         </form>
 
-        {/* 로그인 화면 이동 */}
-
         <button
           type="button"
+          className="auth-switch-button"
           onClick={onGoLogin}
-          style={styles.loginLink}
         >
           이미 계정이 있으신가요? 로그인
         </button>
-      </div>
+      </main>
     </div>
   );
 }
-
-// =========================
-// 스타일
-// =========================
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-
-    background: "#f7f7ff",
-
-    padding: "20px",
-  },
-
-  card: {
-    width: "100%",
-    maxWidth: "420px",
-
-    background: "#ffffff",
-
-    padding: "42px",
-
-    borderRadius: "20px",
-
-    boxShadow:
-      "0 20px 60px rgba(0,0,0,0.08)",
-  },
-
-  logo: {
-    width: "52px",
-    height: "52px",
-
-    borderRadius: "14px",
-
-    background: "#6659ed",
-
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    marginBottom: "30px",
-  },
-
-  logoCircle: {
-    width: "18px",
-    height: "18px",
-
-    border: "3px solid white",
-
-    borderRadius: "50%",
-  },
-
-  title: {
-    textAlign: "center",
-
-    fontSize: "30px",
-
-    marginBottom: "8px",
-
-    color: "#111",
-  },
-
-  subtitle: {
-    textAlign: "center",
-
-    color: "#92929f",
-
-    marginBottom: "38px",
-  },
-
-  form: {
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  label: {
-    textAlign: "center",
-
-    fontWeight: "600",
-
-    marginBottom: "10px",
-
-    color: "#20202a",
-  },
-
-  input: {
-    height: "54px",
-
-    padding: "0 16px",
-
-    border:
-      "1px solid #dedee8",
-
-    borderRadius: "12px",
-
-    fontSize: "16px",
-
-    marginBottom: "22px",
-
-    outline: "none",
-  },
-
-  // =========================
-  // 백엔드 오류 표시
-  // =========================
-
-  error: {
-    padding: "14px",
-
-    marginBottom: "20px",
-
-    background: "#fff0f0",
-
-    color: "#ff5252",
-
-    borderRadius: "10px",
-
-    textAlign: "center",
-
-    fontSize: "14px",
-
-    // errors 배열에 여러 오류가 있을 경우
-    // 줄바꿈해서 보여줌
-    whiteSpace: "pre-line",
-
-    lineHeight: "1.6",
-  },
-
-  button: {
-    height: "54px",
-
-    border: "none",
-
-    borderRadius: "12px",
-
-    background: "#6659ed",
-
-    color: "white",
-
-    fontSize: "17px",
-
-    fontWeight: "700",
-
-    marginTop: "4px",
-  },
-
-  loginLink: {
-    width: "100%",
-
-    marginTop: "24px",
-
-    border: "none",
-
-    background: "transparent",
-
-    color: "#6659ed",
-
-    cursor: "pointer",
-
-    fontSize: "14px",
-  },
-};
 
 export default SignupPage;

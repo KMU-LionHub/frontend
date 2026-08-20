@@ -88,6 +88,27 @@ function App() {
     useRef([]);
 
   // ========================================
+  // 마이크 종료
+  // ========================================
+
+  const stopMicrophone = () => {
+    if (!streamRef.current) {
+      return;
+    }
+
+    streamRef.current
+      .getTracks()
+      .forEach(
+        (track) => {
+          track.stop();
+        }
+      );
+
+    streamRef.current =
+      null;
+  };
+
+  // ========================================
   // 분석
   // ========================================
 
@@ -360,27 +381,6 @@ function App() {
         startRecording();
       }
     };
-
-  // ========================================
-  // 마이크 종료
-  // ========================================
-
-  const stopMicrophone = () => {
-    if (!streamRef.current) {
-      return;
-    }
-
-    streamRef.current
-      .getTracks()
-      .forEach(
-        (track) => {
-          track.stop();
-        }
-      );
-
-    streamRef.current =
-      null;
-  };
 
   // ========================================
   // 전체 녹음 처리
@@ -1535,6 +1535,14 @@ function App() {
                 />
 
                 <ContextPanel
+                  key={`${
+                    analysisId ??
+                    "no-analysis"
+                  }-${
+                    selectedContextId ??
+                    "no-selection"
+                  }`}
+
                   contexts={
                     contexts
                   }

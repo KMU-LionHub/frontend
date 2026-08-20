@@ -8,10 +8,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-import {
-  useEffect,
-  useState,
-} from "react";
+import { useState } from "react";
 
 function ContextPanel({
   contexts = [],
@@ -22,18 +19,6 @@ function ContextPanel({
   analysisCompleted = false,
   isAnalyzing = false,
 }) {
-  const [editText, setEditText] =
-    useState("");
-
-  const [isEditing, setIsEditing] =
-    useState(false);
-
-  const [isSaving, setIsSaving] =
-    useState(false);
-
-  const [isResolving, setIsResolving] =
-    useState(false);
-
   // ========================================
   // 점수 높은 순으로 정렬
   // ========================================
@@ -57,26 +42,21 @@ function ContextPanel({
         selectedContextId
     ) || null;
 
-  // ========================================
-  // 선택 후보가 바뀌면
-  // 편집창 내용 갱신
-  // ========================================
-
-  useEffect(() => {
-    if (!selectedContext) {
-      setEditText("");
-      setIsEditing(false);
-      return;
-    }
-
-    setEditText(
-      selectedContext.finalText ||
-        selectedContext.editedText ||
-        selectedContext.description ||
-        selectedContext.interpretation ||
-        ""
+  const [editText, setEditText] =
+    useState(() =>
+      getEditableText(
+        selectedContext
+      )
     );
-  }, [selectedContext]);
+
+  const [isEditing, setIsEditing] =
+    useState(false);
+
+  const [isSaving, setIsSaving] =
+    useState(false);
+
+  const [isResolving, setIsResolving] =
+    useState(false);
 
   // ========================================
   // 직접 수정 저장
@@ -584,6 +564,20 @@ function clamp(value) {
       0,
       value
     )
+  );
+}
+
+function getEditableText(context) {
+  if (!context) {
+    return "";
+  }
+
+  return (
+    context.finalText ||
+    context.editedText ||
+    context.description ||
+    context.interpretation ||
+    ""
   );
 }
 

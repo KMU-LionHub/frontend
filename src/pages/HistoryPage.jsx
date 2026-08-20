@@ -32,14 +32,6 @@ function HistoryPage({
     useState("");
 
   // ========================================
-  // 최초 조회
-  // ========================================
-
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  // ========================================
   // 전체 기록 불러오기
   // ========================================
 
@@ -66,6 +58,42 @@ function HistoryPage({
         setLoading(false);
       }
     };
+
+  // ========================================
+  // 최초 조회
+  // ========================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getAllConversations()
+      .then((data) => {
+        if (!cancelled) {
+          setConversations(data);
+        }
+      })
+      .catch((err) => {
+        console.error(
+          "대화 기록 조회 실패:",
+          err
+        );
+
+        if (!cancelled) {
+          setError(
+            "대화 기록을 불러오지 못했습니다."
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ========================================
   // 특정 기록 열기
