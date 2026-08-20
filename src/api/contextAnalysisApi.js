@@ -7,6 +7,29 @@ export const ContextResolutionType =
     DISMISSED: "DISMISSED",
   });
 
+export function getContextAnalysis(
+  analysisId
+) {
+  return apiRequest(
+    `/api/context-analyses/${analysisId}`
+  );
+}
+
+export function getContextAnalysisHistory({
+  conversationId,
+  utteranceId,
+}) {
+  const query = new URLSearchParams({
+    conversationId:
+      String(conversationId),
+    utteranceId: String(utteranceId),
+  });
+
+  return apiRequest(
+    `/api/context-analyses?${query}`
+  );
+}
+
 export function analyzeContext({
   conversationId,
   utteranceId,

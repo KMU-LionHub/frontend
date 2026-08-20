@@ -316,4 +316,26 @@ describe("ContextPanel", () => {
       screen.getAllByText("확정 완료")
     ).toHaveLength(2);
   });
+
+  it("disables resolution changes in server history view", () => {
+    render(
+      <ContextPanel
+        analysis={analysis}
+        analysisCompleted
+        readOnly
+        onResolveAmbiguity={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        /서버에 저장된 분석 결과를 읽기 전용으로/
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", {
+        name: "직접 입력",
+      })[0]
+    ).toBeDisabled();
+  });
 });

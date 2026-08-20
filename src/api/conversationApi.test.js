@@ -12,6 +12,8 @@ import {
   closeConversation,
   confirmConversationUtterance,
   createConversation,
+  getConversation,
+  listConversations,
   replaceUtteranceTranscription,
 } from "./conversationApi";
 
@@ -112,6 +114,23 @@ describe("conversationApi", () => {
       expect.objectContaining({
         method: "POST",
       })
+    );
+  });
+
+  it("lists and loads owned conversations", async () => {
+    await listConversations({
+      page: 2,
+      size: 10,
+    });
+    await getConversation(5);
+
+    expect(apiRequest).toHaveBeenNthCalledWith(
+      1,
+      "/api/conversations?page=2&size=10"
+    );
+    expect(apiRequest).toHaveBeenNthCalledWith(
+      2,
+      "/api/conversations/5"
     );
   });
 });

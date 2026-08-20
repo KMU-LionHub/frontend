@@ -21,6 +21,7 @@ function ContextPanel({
   analysisCompleted = false,
   isAnalyzing = false,
   awaitingTranscriptReview = false,
+  readOnly = false,
 }) {
   const ambiguities =
     Array.isArray(analysis?.ambiguities)
@@ -75,6 +76,13 @@ function ContextPanel({
         </div>
       )}
 
+      {readOnly && analysis && (
+        <div className="context-read-only-notice">
+          서버에 저장된 분석 결과를 읽기 전용으로 보고
+          있습니다.
+        </div>
+      )}
+
       <div className="context-ambiguity-list">
         {ambiguities.length > 0 ? (
           ambiguities.map(
@@ -96,7 +104,8 @@ function ContextPanel({
                 disabled={
                   resolvingAmbiguityId !=
                     null ||
-                  analysis?.stale === true
+                  analysis?.stale === true ||
+                  readOnly
                 }
                 onResolve={
                   onResolveAmbiguity

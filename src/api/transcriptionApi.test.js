@@ -10,6 +10,7 @@ import { apiRequest } from "./apiClient";
 import {
   correctTranscriptionWord,
   createTranscription,
+  getTranscription,
   rerecordTranscription,
 } from "./transcriptionApi";
 
@@ -90,6 +91,14 @@ describe("transcriptionApi", () => {
     );
     expect(audio.name).toBe(
       "recording.m4a"
+    );
+  });
+
+  it("loads a full transcription with words", async () => {
+    await getTranscription(21);
+
+    expect(apiRequest).toHaveBeenCalledWith(
+      "/api/stt/transcriptions/21"
     );
   });
 });
