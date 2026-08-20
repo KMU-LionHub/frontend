@@ -1,5 +1,7 @@
 ﻿import {
+  useCallback,
   useEffect,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -22,14 +24,24 @@ import {
   getStoredUser,
   logout,
 } from "./api/authApi";
+import {
+  apiRequest,
+  subscribeToAuthExpiration,
+} from "./api/apiClient";
 
 import {
   saveConversation,
 } from "./db/conversationDb";
+import {
+  initialRecordingWorkflow,
+  isProcessingPhase,
+  isRecordingPhase,
+  RecordingAction,
+  RecordingPhase,
+  recordingWorkflowReducer,
+} from "./workflow/recordingWorkflow";
 
 import "./App.css";
-
-const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 function App() {
   // ========================================
@@ -69,14 +81,28 @@ function App() {
   // ========================================
 
   const [
-    isRecording,
-    setIsRecording,
-  ] = useState(false);
+    recordingWorkflow,
+    dispatchRecording,
+  ] = useReducer(
+    recordingWorkflowReducer,
+    initialRecordingWorkflow
+  );
 
-  const [
+  const {
+    phase: analysisStatus,
+    progress: analysisProgress,
     elapsedTime,
-    setElapsedTime,
-  ] = useState(0);
+  } = recordingWorkflow;
+
+  const isRecording =
+    isRecordingPhase(
+      analysisStatus
+    );
+
+  const isProcessing =
+    isProcessingPhase(
+      analysisStatus
+    );
 
   const mediaRecorderRef =
     useRef(null);
@@ -87,40 +113,42 @@ function App() {
   const chunksRef =
     useRef([]);
 
+  const operationLockRef =
+    useRef(false);
+
+  const discardRecordingRef =
+    useRef(false);
+
+  const recordingStartedAtRef =
+    useRef(null);
+
+  const recordedDurationRef =
+    useRef(0);
+
+  const recordingAttemptRef =
+    useRef(0);
+
   // ========================================
   // 마이크 종료
   // ========================================
 
-  const stopMicrophone = () => {
-    if (!streamRef.current) {
-      return;
-    }
+  const stopMicrophone =
+    useCallback(() => {
+      if (!streamRef.current) {
+        return;
+      }
 
-    streamRef.current
-      .getTracks()
-      .forEach(
-        (track) => {
-          track.stop();
-        }
-      );
+      streamRef.current
+        .getTracks()
+        .forEach(
+          (track) => {
+            track.stop();
+          }
+        );
 
-    streamRef.current =
-      null;
-  };
-
-  // ========================================
-  // 분석
-  // ========================================
-
-  const [
-    analysisStatus,
-    setAnalysisStatus,
-  ] = useState("WAITING");
-
-  const [
-    analysisProgress,
-    setAnalysisProgress,
-  ] = useState(0);
+      streamRef.current =
+        null;
+    }, []);
 
   const [
     transcriptionId,
@@ -172,6 +200,61 @@ function App() {
   ] = useState("");
 
   // ========================================
+  // 인증 만료
+  // ========================================
+
+  useEffect(() => {
+    return subscribeToAuthExpiration(
+      () => {
+        recordingAttemptRef.current +=
+          1;
+        discardRecordingRef.current =
+          true;
+
+        const recorder =
+          mediaRecorderRef.current;
+
+        if (
+          recorder &&
+          recorder.state !==
+            "inactive"
+        ) {
+          operationLockRef.current =
+            true;
+          recorder.stop();
+        } else {
+          operationLockRef.current =
+            false;
+        }
+
+        stopMicrophone();
+        recordingStartedAtRef.current =
+          null;
+        recordedDurationRef.current =
+          0;
+
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        setAuthPage("login");
+        setActiveMenu("record");
+        setTranscriptionId(null);
+        setConversationId(null);
+        setUtteranceId(null);
+        setAnalysisId(null);
+        setTranscript("");
+        setContexts([]);
+        setAnnotations([]);
+        setSelectedContextId(null);
+        setError("");
+
+        dispatchRecording({
+          type: RecordingAction.RESET,
+        });
+      }
+    );
+  }, [stopMicrophone]);
+
+  // ========================================
   // 로그인 성공
   // ========================================
 
@@ -184,6 +267,11 @@ function App() {
     );
 
     setIsLoggedIn(true);
+    setError("");
+
+    dispatchRecording({
+      type: RecordingAction.RESET,
+    });
   };
 
   // ========================================
@@ -192,8 +280,6 @@ function App() {
 
   const handleLogout = () => {
     logout();
-
-    stopMicrophone();
 
     setCurrentUser(null);
     setIsLoggedIn(false);
@@ -224,10 +310,10 @@ function App() {
 
     const timer =
       setInterval(() => {
-        setElapsedTime(
-          (current) =>
-            current + 1
-        );
+        dispatchRecording({
+          type:
+            RecordingAction.TICK,
+        });
       }, 1000);
 
     return () => {
@@ -241,9 +327,25 @@ function App() {
 
   useEffect(() => {
     return () => {
+      recordingAttemptRef.current +=
+        1;
+      discardRecordingRef.current =
+        true;
+
+      const recorder =
+        mediaRecorderRef.current;
+
+      if (
+        recorder &&
+        recorder.state !==
+          "inactive"
+      ) {
+        recorder.stop();
+      }
+
       stopMicrophone();
     };
-  }, []);
+  }, [stopMicrophone]);
 
   // ========================================
   // 녹음 시작
@@ -251,10 +353,42 @@ function App() {
 
   const startRecording =
     async () => {
+      if (
+        operationLockRef.current ||
+        isProcessing ||
+        isRecording
+      ) {
+        return;
+      }
+
+      operationLockRef.current =
+        true;
+      const attemptId =
+        recordingAttemptRef.current +
+        1;
+      recordingAttemptRef.current =
+        attemptId;
+      discardRecordingRef.current =
+        false;
+
+      dispatchRecording({
+        type:
+          RecordingAction.REQUEST_PERMISSION,
+      });
+
       try {
         setError("");
 
-        resetAnalysisResult();
+        if (
+          !navigator.mediaDevices
+            ?.getUserMedia ||
+          typeof MediaRecorder ===
+            "undefined"
+        ) {
+          throw new Error(
+            "이 브라우저는 음성 녹음을 지원하지 않습니다."
+          );
+        }
 
         const stream =
           await navigator
@@ -268,6 +402,18 @@ function App() {
                   true,
               },
             });
+
+        if (
+          attemptId !==
+          recordingAttemptRef.current
+        ) {
+          stream
+            .getTracks()
+            .forEach((track) =>
+              track.stop()
+            );
+          return;
+        }
 
         streamRef.current =
           stream;
@@ -311,6 +457,22 @@ function App() {
 
         recorder.onstop =
           async () => {
+            if (
+              discardRecordingRef.current
+            ) {
+              discardRecordingRef.current =
+                false;
+              stopMicrophone();
+              chunksRef.current = [];
+              mediaRecorderRef.current =
+                null;
+              operationLockRef.current =
+                false;
+              recordingStartedAtRef.current =
+                null;
+              return;
+            }
+
             const blob =
               new Blob(
                 chunksRef.current,
@@ -323,29 +485,62 @@ function App() {
 
             stopMicrophone();
 
-            await processRecording(
-              blob
-            );
+            try {
+              await processRecording(
+                blob,
+                recordedDurationRef.current
+              );
+            } finally {
+              chunksRef.current = [];
+              mediaRecorderRef.current =
+                null;
+              operationLockRef.current =
+                false;
+              recordingStartedAtRef.current =
+                null;
+            }
           };
 
         recorder.start();
 
-        setElapsedTime(0);
-        setIsRecording(true);
+        resetAnalysisResult();
 
-        setAnalysisStatus(
-          "RECORDING"
-        );
+        recordingStartedAtRef.current =
+          new Date().getTime();
+        recordedDurationRef.current =
+          0;
 
-        setAnalysisProgress(0);
+        dispatchRecording({
+          type:
+            RecordingAction.START_RECORDING,
+        });
+
+        operationLockRef.current =
+          false;
       } catch (err) {
+        if (
+          attemptId !==
+          recordingAttemptRef.current
+        ) {
+          return;
+        }
+
         console.error(
           "녹음 시작 실패:",
           err
         );
 
+        stopMicrophone();
+        operationLockRef.current =
+          false;
+
+        dispatchRecording({
+          type: RecordingAction.FAIL,
+        });
+
         setError(
-          "마이크를 사용할 수 없습니다. 브라우저 마이크 권한을 확인해주세요."
+          err.message ||
+            "마이크를 사용할 수 없습니다. 브라우저 마이크 권한을 확인해주세요."
         );
       }
     };
@@ -363,10 +558,32 @@ function App() {
       recorder.state !==
         "inactive"
     ) {
+      operationLockRef.current =
+        true;
+
+      const startedAt =
+        recordingStartedAtRef.current;
+      const elapsedTimeValue =
+        startedAt == null
+          ? elapsedTime
+          : Math.floor(
+              (new Date().getTime() -
+                startedAt) /
+                1000
+            );
+
+      recordedDurationRef.current =
+        elapsedTimeValue;
+
+      dispatchRecording({
+        type:
+          RecordingAction.STOP_RECORDING,
+        elapsedTime:
+          elapsedTimeValue,
+      });
+
       recorder.stop();
     }
-
-    setIsRecording(false);
   };
 
   // ========================================
@@ -375,11 +592,25 @@ function App() {
 
   const handleRecordButton =
     () => {
-      if (isRecording) {
+      const recorder =
+        mediaRecorderRef.current;
+
+      if (
+        recorder?.state ===
+        "recording"
+      ) {
         stopRecording();
-      } else {
-        startRecording();
+        return;
       }
+
+      if (
+        operationLockRef.current ||
+        isProcessing
+      ) {
+        return;
+      }
+
+      startRecording();
     };
 
   // ========================================
@@ -387,7 +618,10 @@ function App() {
   // ========================================
 
   const processRecording =
-    async (blob) => {
+    async (
+      blob,
+      elapsedTimeValue
+    ) => {
       try {
         setError("");
 
@@ -428,7 +662,10 @@ function App() {
 
         setAnnotations(words);
 
-        setAnalysisProgress(40);
+        dispatchRecording({
+          type:
+            RecordingAction.TRANSCRIPTION_COMPLETE,
+        });
 
         // 2. 대화 생성
         const conversation =
@@ -493,11 +730,10 @@ function App() {
         );
 
         // 4. AI 분석
-        setAnalysisStatus(
-          "ANALYZING_CONTEXT"
-        );
-
-        setAnalysisProgress(70);
+        dispatchRecording({
+          type:
+            RecordingAction.START_ANALYSIS,
+        });
 
         const analysis =
           await createContextAnalysis({
@@ -507,11 +743,6 @@ function App() {
             utteranceId:
               newUtteranceId,
           });
-
-        console.log(
-          "AI ANALYSIS RESPONSE:",
-          analysis
-        );
 
         const newAnalysisId =
           analysis.id;
@@ -524,11 +755,6 @@ function App() {
           normalizeContextCandidates(
             analysis
           );
-
-        console.log(
-          "NORMALIZED CONTEXTS:",
-          normalizedContexts
-        );
 
         setContexts(
           normalizedContexts
@@ -546,12 +772,6 @@ function App() {
 
         setSelectedContextId(
           newSelectedContextId
-        );
-
-        setAnalysisProgress(100);
-
-        setAnalysisStatus(
-          "COMPLETED"
         );
 
         // 5. 기록 저장
@@ -581,7 +801,12 @@ function App() {
             newSelectedContextId,
 
           elapsedTimeValue:
-            elapsedTime,
+            elapsedTimeValue,
+        });
+
+        dispatchRecording({
+          type:
+            RecordingAction.COMPLETE,
         });
       } catch (err) {
         console.error(
@@ -589,11 +814,9 @@ function App() {
           err
         );
 
-        setAnalysisStatus(
-          "FAILED"
-        );
-
-        setAnalysisProgress(0);
+        dispatchRecording({
+          type: RecordingAction.FAIL,
+        });
 
         setError(
           err.message ||
@@ -608,12 +831,6 @@ function App() {
 
   const createTranscription =
     async (blob) => {
-      setAnalysisStatus(
-        "UPLOADING"
-      );
-
-      setAnalysisProgress(20);
-
       const formData =
         new FormData();
 
@@ -623,20 +840,14 @@ function App() {
         "recording.webm"
       );
 
-      const response =
-        await authFetch(
-          `${API_URL}/api/stt/transcriptions`,
-          {
-            method:
-              "POST",
-
-            body:
-              formData,
-          }
-        );
-
-      return await handleApiResponse(
-        response
+      return apiRequest(
+        "/api/stt/transcriptions",
+        {
+          method: "POST",
+          body: formData,
+          defaultErrorMessage:
+            "음성을 텍스트로 변환하지 못했습니다.",
+        }
       );
     };
 
@@ -646,34 +857,22 @@ function App() {
 
   const createConversation =
     async () => {
-      const response =
-        await authFetch(
-          `${API_URL}/api/conversations`,
-          {
-            method:
-              "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                title:
-                  "AI 맥락 분석",
-
-                context:
-                  null,
-
-                participants:
-                  [],
-              }),
-          }
-        );
-
-      return await handleApiResponse(
-        response
+      return apiRequest(
+        "/api/conversations",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            title: "AI 맥락 분석",
+            context: null,
+            participants: [],
+          }),
+          defaultErrorMessage:
+            "대화를 생성하지 못했습니다.",
+        }
       );
     };
 
@@ -687,28 +886,21 @@ function App() {
       transcriptionId,
       speakerParticipantId,
     }) => {
-      const response =
-        await authFetch(
-          `${API_URL}/api/conversations/${conversationId}/utterances`,
-          {
-            method:
-              "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                transcriptionId,
-                speakerParticipantId,
-              }),
-          }
-        );
-
-      return await handleApiResponse(
-        response
+      return apiRequest(
+        `/api/conversations/${conversationId}/utterances`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            transcriptionId,
+            speakerParticipantId,
+          }),
+          defaultErrorMessage:
+            "발언을 대화에 추가하지 못했습니다.",
+        }
       );
     };
 
@@ -721,34 +913,24 @@ function App() {
       conversationId,
       utteranceId,
     }) => {
-      const response =
-        await authFetch(
-          `${API_URL}/api/context-analyses`,
-          {
-            method:
-              "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                conversationId,
-                utteranceId,
-
-                candidateCount:
-                  3,
-
-                model:
-                  "GEMINI_3_7_FLASH",
-              }),
-          }
-        );
-
-      return await handleApiResponse(
-        response
+      return apiRequest(
+        "/api/context-analyses",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            conversationId,
+            utteranceId,
+            candidateCount: 3,
+            model:
+              "GEMINI_3_7_FLASH",
+          }),
+          defaultErrorMessage:
+            "발언의 맥락을 분석하지 못했습니다.",
+        }
       );
     };
 
@@ -903,27 +1085,20 @@ function App() {
           );
         }
 
-        const response =
-          await authFetch(
-            `${API_URL}/api/context-analyses/${context.analysisId}/ambiguities/${context.ambiguityId}/selection`,
-            {
-              method:
-                "PUT",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body:
-                JSON.stringify({
-                  candidateId,
-                }),
-            }
-          );
-
-        await handleApiResponse(
-          response
+        await apiRequest(
+          `/api/context-analyses/${context.analysisId}/ambiguities/${context.ambiguityId}/selection`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              candidateId,
+            }),
+            defaultErrorMessage:
+              "맥락 후보를 선택하지 못했습니다.",
+          }
         );
 
         const updatedContexts =
@@ -1142,38 +1317,20 @@ function App() {
           };
         }
 
-        console.log(
-          "CONTEXT RESOLUTION REQUEST:",
-          requestBody
-        );
-
-        const response =
-          await authFetch(
-            `${API_URL}/api/context-analyses/${context.analysisId}/ambiguities/${context.ambiguityId}/resolution`,
-            {
-              method:
-                "PUT",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body:
-                JSON.stringify(
-                  requestBody
-                ),
-            }
-          );
-
-        const data =
-          await handleApiResponse(
-            response
-          );
-
-        console.log(
-          "CONTEXT RESOLUTION RESPONSE:",
-          data
+        const data = await apiRequest(
+          `/api/context-analyses/${context.analysisId}/ambiguities/${context.ambiguityId}/resolution`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify(
+              requestBody
+            ),
+            defaultErrorMessage:
+              "맥락을 확정하지 못했습니다.",
+          }
         );
 
         const resolvedText =
@@ -1272,11 +1429,9 @@ function App() {
           null
       );
 
-      setElapsedTime(
-        conversation
-          .elapsedTime ??
-          0
-      );
+      recordedDurationRef.current =
+        conversation.elapsedTime ??
+        0;
 
       setTranscriptionId(
         conversation
@@ -1302,13 +1457,13 @@ function App() {
           null
       );
 
-      setAnalysisStatus(
-        "COMPLETED"
-      );
-
-      setAnalysisProgress(
-        100
-      );
+      dispatchRecording({
+        type:
+          RecordingAction.RESTORE_COMPLETED,
+        elapsedTime:
+          conversation.elapsedTime ??
+          0,
+      });
 
       setError("");
 
@@ -1339,13 +1494,9 @@ function App() {
         null
       );
 
-      setAnalysisStatus(
-        "WAITING"
-      );
-
-      setAnalysisProgress(
-        0
-      );
+      dispatchRecording({
+        type: RecordingAction.RESET,
+      });
 
       setTranscript("");
 
@@ -1364,26 +1515,32 @@ function App() {
 
   const resetConversation =
     () => {
-      stopMicrophone();
+      recordingAttemptRef.current +=
+        1;
+      discardRecordingRef.current =
+        true;
+
+      const recorder =
+        mediaRecorderRef.current;
 
       if (
-        mediaRecorderRef
-          .current &&
-        mediaRecorderRef
-          .current
-          .state !==
+        recorder &&
+        recorder.state !==
           "inactive"
       ) {
-        mediaRecorderRef
-          .current
-          .stop();
+        operationLockRef.current =
+          true;
+        recorder.stop();
+      } else {
+        operationLockRef.current =
+          false;
       }
 
-      setIsRecording(
-        false
-      );
-
-      setElapsedTime(0);
+      stopMicrophone();
+      recordingStartedAtRef.current =
+        null;
+      recordedDurationRef.current =
+        0;
 
       resetAnalysisResult();
 
@@ -1461,6 +1618,10 @@ function App() {
             isRecording
           }
 
+          isProcessing={
+            isProcessing
+          }
+
           onLogout={
             handleLogout
           }
@@ -1491,6 +1652,10 @@ function App() {
                 <RecordingPanel
                   isRecording={
                     isRecording
+                  }
+
+                  isProcessing={
+                    isProcessing
                   }
 
                   elapsedTime={
@@ -1565,12 +1730,12 @@ function App() {
 
                   analysisCompleted={
                     analysisStatus ===
-                    "COMPLETED"
+                    RecordingPhase.COMPLETED
                   }
 
                   isAnalyzing={
                     analysisStatus ===
-                    "ANALYZING_CONTEXT"
+                    RecordingPhase.ANALYZING
                   }
                 />
               </div>
@@ -1732,118 +1897,6 @@ function normalizeContextCandidates(
   );
 
   return result;
-}
-
-// ========================================
-// 인증 Fetch
-// ========================================
-
-async function authFetch(
-  url,
-  options = {}
-) {
-  const accessToken =
-    getAccessToken();
-
-  if (!accessToken) {
-    throw new Error(
-      "로그인이 필요합니다."
-    );
-  }
-
-  const headers = {
-    ...(options.headers ||
-      {}),
-
-    Authorization:
-      `Bearer ${accessToken}`,
-  };
-
-  return fetch(
-    url,
-    {
-      ...options,
-
-      headers,
-    }
-  );
-}
-
-// ========================================
-// API 응답 처리
-// ========================================
-
-async function handleApiResponse(
-  response
-) {
-  const data =
-    await readResponseBody(
-      response
-    );
-
-  if (
-    response.status ===
-    401
-  ) {
-    logout();
-
-    throw new Error(
-      "로그인이 만료되었습니다."
-    );
-  }
-
-  if (!response.ok) {
-    const message =
-      data?.message ||
-      (
-        Array.isArray(
-          data?.errors
-        )
-          ? data.errors.join(
-              ", "
-            )
-          : null
-      ) ||
-      `요청에 실패했습니다. HTTP ${response.status}`;
-
-    throw new Error(
-      message
-    );
-  }
-
-  return data;
-}
-
-// ========================================
-// Response 읽기
-// ========================================
-
-async function readResponseBody(
-  response
-) {
-  const contentType =
-    response.headers.get(
-      "content-type"
-    );
-
-  if (
-    contentType?.includes(
-      "application/json"
-    )
-  ) {
-    return await response.json();
-  }
-
-  const text =
-    await response.text();
-
-  if (!text) {
-    return {};
-  }
-
-  return {
-    message: text,
-  };
 }
 
 export default App;

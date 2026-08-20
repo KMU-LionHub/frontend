@@ -2,7 +2,7 @@ import { BrainCircuit } from "lucide-react";
 
 function AnalysisProgress({
   progress = 0,
-  status = "WAITING",
+  status = "IDLE",
 }) {
   // 혹시 백엔드에서 이상한 값이 와도
   // 0~100 사이로 제한
@@ -21,12 +21,13 @@ function AnalysisProgress({
           <h2>분석 진행 상태</h2>
 
           <p>
-            실시간 발언 인텐트 및 맥락을
-            파악하고 있습니다
+            녹음 처리와 맥락 분석 단계를
+            확인할 수 있습니다.
           </p>
         </div>
 
         <div
+          aria-live="polite"
           className={
             status === "COMPLETED"
               ? "analysis-badge completed"
@@ -46,6 +47,13 @@ function AnalysisProgress({
       <div className="progress-circle-wrapper">
         <div
           className="progress-circle"
+          role="progressbar"
+          aria-label="녹음 및 분석 진행률"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={
+            Math.round(safeProgress)
+          }
           style={{
             "--progress": `${safeProgress * 3.6}deg`,
           }}
@@ -87,17 +95,20 @@ function AnalysisProgress({
 
 function getStatusText(status) {
   switch (status) {
-    case "UPLOADING":
-      return "업로드 중";
+    case "REQUESTING_PERMISSION":
+      return "마이크 준비";
 
-    case "STT":
+    case "RECORDING":
+      return "녹음 중";
+
+    case "TRANSCRIBING":
       return "음성 인식 중";
 
-    case "ANALYZING_CONTEXT":
-      return "AI 분석 중";
+    case "PREPARING_ANALYSIS":
+      return "분석 준비 중";
 
-    case "ANNOTATING":
-      return "주석 생성 중";
+    case "ANALYZING":
+      return "AI 분석 중";
 
     case "COMPLETED":
       return "분석 완료";
@@ -112,17 +123,20 @@ function getStatusText(status) {
 
 function getDetailedStatus(status) {
   switch (status) {
-    case "UPLOADING":
-      return "녹음된 음성을 서버로 전송하고 있습니다.";
+    case "REQUESTING_PERMISSION":
+      return "브라우저의 마이크 사용 권한을 확인하고 있습니다.";
 
-    case "STT":
+    case "RECORDING":
+      return "음성을 녹음하고 있습니다. 완료하려면 정지 버튼을 눌러주세요.";
+
+    case "TRANSCRIBING":
       return "음성을 텍스트로 변환하고 있습니다.";
 
-    case "ANALYZING_CONTEXT":
-      return "발언의 의미와 맥락 후보를 분석하고 있습니다.";
+    case "PREPARING_ANALYSIS":
+      return "전사 결과를 대화 발언으로 준비하고 있습니다.";
 
-    case "ANNOTATING":
-      return "중요한 단어와 정보를 분석하고 있습니다.";
+    case "ANALYZING":
+      return "발언의 의미와 맥락 후보를 분석하고 있습니다.";
 
     case "COMPLETED":
       return "모든 분석이 완료되었습니다.";
