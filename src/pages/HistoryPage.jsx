@@ -1,86 +1,76 @@
 import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  MessageSquareText,
+  Play,
+  RotateCcw,
+  UserRound,
+  Users,
+} from "lucide-react";
+import {
   useEffect,
   useState,
 } from "react";
 
 import {
-  Clock3,
-  MessageSquareText,
-  Trash2,
-  ChevronRight,
-  RotateCcw,
-} from "lucide-react";
+  findDraftUtterance,
+  getConversationHistoryDetail,
+  listConversationHistory,
+  loadUtteranceHistoryRecord,
+} from "../api/historyApi";
 
-import {
-  getAllConversations,
-  deleteConversation,
-  clearConversations,
-} from "../db/conversationDb";
+const PAGE_SIZE = 12;
 
 function HistoryPage({
   onOpenConversation,
+  onResumeConversation,
 }) {
-  const [
-    conversations,
-    setConversations,
-  ] = useState([]);
-
+  const [page, setPage] =
+    useState(0);
+  const [pageData, setPageData] =
+    useState({
+      conversations: [],
+      page: 0,
+      size: PAGE_SIZE,
+      totalElements: 0,
+      totalPages: 0,
+    });
+  const [selectedConversation, setSelectedConversation] =
+    useState(null);
   const [loading, setLoading] =
     useState(true);
-
+  const [detailLoading, setDetailLoading] =
+    useState(false);
+  const [utteranceLoadingId, setUtteranceLoadingId] =
+    useState(null);
   const [error, setError] =
     useState("");
-
-  // ========================================
-  // 전체 기록 불러오기
-  // ========================================
-
-  const loadConversations =
-    async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const data =
-          await getAllConversations();
-
-        setConversations(data);
-      } catch (err) {
-        console.error(
-          "대화 기록 조회 실패:",
-          err
-        );
-
-        setError(
-          "대화 기록을 불러오지 못했습니다."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  // ========================================
-  // 최초 조회
-  // ========================================
 
   useEffect(() => {
     let cancelled = false;
 
-    getAllConversations()
+    listConversationHistory({
+      page,
+      size: PAGE_SIZE,
+    })
       .then((data) => {
         if (!cancelled) {
-          setConversations(data);
+          setPageData(data);
+          setError("");
         }
       })
       .catch((err) => {
         console.error(
-          "대화 기록 조회 실패:",
+          "서버 대화 기록 조회 실패:",
           err
         );
 
         if (!cancelled) {
           setError(
-            "대화 기록을 불러오지 못했습니다."
+            err.message ||
+              "대화 기록을 불러오지 못했습니다."
           );
         }
       })
@@ -93,479 +83,534 @@ function HistoryPage({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [page]);
 
-  // ========================================
-  // 특정 기록 열기
-  // ========================================
-
-  const handleOpen = (
-    conversation
-  ) => {
-    if (
-      onOpenConversation
-    ) {
-      onOpenConversation(
-        conversation
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const data =
+        await listConversationHistory({
+          page,
+          size: PAGE_SIZE,
+        });
+      setPageData(data);
+    } catch (err) {
+      console.error(
+        "서버 대화 기록 새로고침 실패:",
+        err
       );
+      setError(
+        err.message ||
+          "대화 기록을 새로고침하지 못했습니다."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
-  // ========================================
-  // 특정 기록 삭제
-  // ========================================
-
-  const handleDelete =
-    async (event, id) => {
-      event.stopPropagation();
-
-      const confirmed =
-        window.confirm(
-          "이 대화 기록을 삭제하시겠습니까?"
+  const handleOpenDetail = async (
+    conversationId
+  ) => {
+    try {
+      setDetailLoading(true);
+      setError("");
+      const detail =
+        await getConversationHistoryDetail(
+          conversationId
         );
+      setSelectedConversation(detail);
+    } catch (err) {
+      console.error(
+        "대화 상세 조회 실패:",
+        err
+      );
+      setError(
+        err.message ||
+          "대화 상세를 불러오지 못했습니다."
+      );
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
-      if (!confirmed) {
-        return;
-      }
+  const handleOpenUtterance = async (
+    utterance
+  ) => {
+    if (!selectedConversation) {
+      return;
+    }
 
-      try {
-        await deleteConversation(id);
+    try {
+      setUtteranceLoadingId(
+        utterance.id
+      );
+      setError("");
+      const record =
+        await loadUtteranceHistoryRecord({
+          conversation:
+            selectedConversation,
+          utterance,
+        });
+      onOpenConversation?.(record);
+    } catch (err) {
+      console.error(
+        "발언 기록 조회 실패:",
+        err
+      );
+      setError(
+        err.message ||
+          "발언 기록을 불러오지 못했습니다."
+      );
+    } finally {
+      setUtteranceLoadingId(null);
+    }
+  };
 
-        setConversations(
-          (current) =>
-            current.filter(
-              (conversation) =>
-                conversation.id !==
-                id
-            )
-        );
-      } catch (err) {
-        console.error(
-          "대화 기록 삭제 실패:",
-          err
-        );
+  const handleResume = async () => {
+    if (!selectedConversation) {
+      return;
+    }
 
-        setError(
-          "대화 기록 삭제에 실패했습니다."
-        );
-      }
-    };
+    const draftUtterance =
+      findDraftUtterance(
+        selectedConversation
+      );
 
-  // ========================================
-  // 전체 기록 삭제
-  // ========================================
+    try {
+      setDetailLoading(true);
+      setError("");
+      const record = draftUtterance
+        ? await loadUtteranceHistoryRecord({
+            conversation:
+              selectedConversation,
+            utterance: draftUtterance,
+          })
+        : null;
 
-  const handleClearAll =
-    async () => {
-      if (
-        conversations.length ===
-        0
-      ) {
-        return;
-      }
+      onResumeConversation?.({
+        conversation:
+          selectedConversation,
+        record,
+      });
+    } catch (err) {
+      console.error(
+        "대화 이어가기 실패:",
+        err
+      );
+      setError(
+        err.message ||
+          "대화를 이어서 열지 못했습니다."
+      );
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
-      const confirmed =
-        window.confirm(
-          "저장된 모든 대화 기록을 삭제하시겠습니까?"
-        );
+  if (selectedConversation) {
+    return (
+      <ConversationHistoryDetail
+        conversation={
+          selectedConversation
+        }
+        error={error}
+        detailLoading={detailLoading}
+        utteranceLoadingId={
+          utteranceLoadingId
+        }
+        onBack={() => {
+          setSelectedConversation(null);
+          setError("");
+        }}
+        onOpenUtterance={
+          handleOpenUtterance
+        }
+        onResume={handleResume}
+      />
+    );
+  }
 
-      if (!confirmed) {
-        return;
-      }
-
-      try {
-        await clearConversations();
-
-        setConversations([]);
-      } catch (err) {
-        console.error(
-          "대화 기록 전체 삭제 실패:",
-          err
-        );
-
-        setError(
-          "대화 기록을 삭제하지 못했습니다."
-        );
-      }
-    };
+  const conversations =
+    Array.isArray(pageData.conversations)
+      ? pageData.conversations
+      : [];
 
   return (
     <div className="history-page">
-      {/* 상단 */}
-
       <div className="history-header">
         <div>
-          <h2>
-            대화 기록
-          </h2>
-
+          <h2>대화 기록</h2>
           <p>
-            이전에 분석한 대화와
-            AI 맥락 분석 결과를
-            다시 확인할 수 있습니다.
+            현재 계정에 저장된 서버 대화를 확인하고
+            발언별 전사와 맥락 분석을 다시 볼 수 있습니다.
           </p>
         </div>
 
-        <div className="history-header-actions">
-          <button
-            type="button"
-            className="history-refresh-button"
-            onClick={
-              loadConversations
+        <button
+          type="button"
+          className="history-refresh-button"
+          onClick={handleRefresh}
+          disabled={loading}
+        >
+          <RotateCcw
+            size={15}
+            className={
+              loading
+                ? "history-loading-icon"
+                : ""
             }
-          >
-            <RotateCcw
-              size={15}
-            />
-
-            새로고침
-          </button>
-
-          <button
-            type="button"
-            className="history-clear-button"
-            onClick={
-              handleClearAll
-            }
-            disabled={
-              conversations.length ===
-              0
-            }
-          >
-            <Trash2
-              size={15}
-            />
-
-            전체 삭제
-          </button>
-        </div>
+          />
+          새로고침
+        </button>
       </div>
 
-      {/* 오류 */}
-
       {error && (
-        <div className="history-error">
+        <div
+          className="history-error"
+          role="alert"
+        >
           {error}
         </div>
       )}
 
-      {/* 로딩 */}
-
       {loading ? (
-        <div className="history-empty">
-          <div className="history-empty-icon">
-            <RotateCcw
-              size={25}
-              className="history-loading-icon"
-            />
-          </div>
-
-          <strong>
-            대화 기록을 불러오는 중입니다
-          </strong>
-        </div>
-      ) : conversations.length ===
-        0 ? (
-        /* 기록 없음 */
-
+        <HistoryLoading />
+      ) : conversations.length === 0 ? (
         <div className="history-empty">
           <div className="history-empty-icon">
             <MessageSquareText
               size={30}
             />
           </div>
-
           <strong>
-            저장된 대화가 없습니다
+            서버에 저장된 대화가 없습니다
           </strong>
-
           <p>
-            대화를 녹음하고 STT 처리가
-            완료되면 이곳에 기록이
-            저장됩니다.
+            대화를 시작하고 발언을 녹음하면 이곳에
+            계정별 기록이 표시됩니다.
           </p>
         </div>
       ) : (
-        /* 기록 목록 */
-
         <div className="history-list">
           {conversations.map(
             (conversation) => (
-              <div
-                key={
-                  conversation.id
-                }
+              <button
+                key={conversation.id}
+                type="button"
                 className="history-item"
-                role="button"
-                tabIndex={0}
                 onClick={() =>
-                  handleOpen(
-                    conversation
+                  handleOpenDetail(
+                    conversation.id
                   )
                 }
-                onKeyDown={(
-                  event
-                ) => {
-                  if (
-                    event.key ===
-                      "Enter" ||
-                    event.key === " "
-                  ) {
-                    event.preventDefault();
-
-                    handleOpen(
-                      conversation
-                    );
-                  }
-                }}
+                disabled={detailLoading}
               >
-                {/* 아이콘 */}
-
                 <div className="history-item-icon">
                   <MessageSquareText
                     size={20}
                   />
                 </div>
 
-                {/* 내용 */}
-
                 <div className="history-item-content">
                   <div className="history-item-top">
                     <strong>
-                      {getConversationTitle(
-                        conversation
-                      )}
+                      {conversation.title}
                     </strong>
-
                     <div className="history-time">
-                      <Clock3
-                        size={12}
-                      />
-
+                      <Clock3 size={12} />
                       {formatDate(
-                        conversation.createdAt
+                        conversation.updatedAt
                       )}
                     </div>
                   </div>
 
                   <p>
-                    {getPreview(
-                      conversation.transcript
-                    )}
+                    {conversation.context ||
+                      "대화 배경이 없습니다."}
                   </p>
 
                   <div className="history-meta">
-                    {conversation.speaker
-                      ?.displayName && (
-                      <span>
-                        화자 {conversation.speaker.displayName}
-                      </span>
-                    )}
-
                     <span>
-                      모호한 구간{" "}
-                      {getAmbiguityCount(
-                        conversation
-                      )}
-                      개
+                      발언 {conversation.utteranceCount}개
                     </span>
-
-                    <span>
-                      단어{" "}
-                      {
-                        conversation
-                          .annotations
-                          ?.length ??
-                        0
+                    <span
+                      className={
+                        conversation.status ===
+                        "CLOSED"
+                          ? "history-status-closed"
+                          : "history-status-active"
                       }
-                      개
+                    >
+                      {conversation.status ===
+                      "CLOSED"
+                        ? "종료됨"
+                        : "진행 중"}
                     </span>
-
-                    {conversation
-                      .contextAnalysis
-                      ?.usableResolution && (
-                      <span className="history-selected-badge">
-                        모든 맥락 확정
-                      </span>
-                    )}
                   </div>
                 </div>
 
-                {/* 액션 */}
-
                 <div className="history-item-actions">
-                  <button
-                    type="button"
-                    className="history-delete-button"
-                    onClick={(
-                      event
-                    ) =>
-                      handleDelete(
-                        event,
-                        conversation.id
-                      )
-                    }
-                    title="기록 삭제"
-                  >
-                    <Trash2
-                      size={15}
-                    />
-                  </button>
-
                   <ChevronRight
                     size={18}
                     className="history-arrow"
                   />
                 </div>
-              </div>
+              </button>
             )
           )}
+        </div>
+      )}
+
+      {pageData.totalPages > 1 && (
+        <div className="history-pagination">
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              setPage(
+                (current) =>
+                  Math.max(0, current - 1)
+              );
+            }}
+            disabled={page <= 0 || loading}
+            aria-label="이전 페이지"
+          >
+            <ChevronLeft size={16} />
+          </button>
+
+          <span>
+            {pageData.page + 1} / {pageData.totalPages}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              setPage(
+                (current) =>
+                  Math.min(
+                    pageData.totalPages - 1,
+                    current + 1
+                  )
+              );
+            }}
+            disabled={
+              page >=
+                pageData.totalPages - 1 ||
+              loading
+            }
+            aria-label="다음 페이지"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-function getAmbiguityCount(
-  conversation
-) {
-  if (
-    conversation.contextAnalysis
-      ?.ambiguityCount != null
-  ) {
-    return conversation.contextAnalysis
-      .ambiguityCount;
-  }
+function ConversationHistoryDetail({
+  conversation,
+  error,
+  detailLoading,
+  utteranceLoadingId,
+  onBack,
+  onOpenUtterance,
+  onResume,
+}) {
+  const participants =
+    Array.isArray(conversation.participants)
+      ? conversation.participants
+      : [];
+  const utterances =
+    Array.isArray(conversation.utterances)
+      ? [...conversation.utterances].sort(
+          (a, b) =>
+            Number(a.order ?? 0) -
+            Number(b.order ?? 0)
+        )
+      : [];
 
-  if (
-    !Array.isArray(
-      conversation.contexts
-    )
-  ) {
-    return 0;
-  }
+  return (
+    <div className="history-page history-detail-page">
+      <div className="history-detail-header">
+        <button
+          type="button"
+          className="history-back-button"
+          onClick={onBack}
+        >
+          <ArrowLeft size={16} />
+          목록으로
+        </button>
 
-  return new Set(
-    conversation.contexts
-      .map(
-        (context) =>
-          context.ambiguityId
-      )
-      .filter(
-        (ambiguityId) =>
-          ambiguityId != null
-      )
-  ).size;
+        <div className="history-detail-title">
+          <div>
+            <span
+              className={
+                conversation.status ===
+                "CLOSED"
+                  ? "history-status-closed"
+                  : "history-status-active"
+              }
+            >
+              {conversation.status ===
+              "CLOSED"
+                ? "종료된 대화"
+                : "진행 중인 대화"}
+            </span>
+            <h2>{conversation.title}</h2>
+            <p>
+              {conversation.context ||
+                "대화 배경이 없습니다."}
+            </p>
+          </div>
+
+          {conversation.status ===
+            "ACTIVE" && (
+            <button
+              type="button"
+              className="history-resume-button"
+              onClick={onResume}
+              disabled={detailLoading}
+            >
+              <Play size={15} />
+              {detailLoading
+                ? "불러오는 중..."
+                : "이 대화 이어가기"}
+            </button>
+          )}
+        </div>
+
+        <div className="history-detail-participants">
+          <Users size={16} />
+          <strong>참여자</strong>
+          <div>
+            {participants.map(
+              (participant) => (
+                <span key={participant.id}>
+                  <UserRound size={13} />
+                  {participant.displayName}
+                  {participant.type ===
+                    "SELF" && " · 나"}
+                </span>
+              )
+            )}
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div
+          className="history-error"
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
+
+      <div className="history-utterance-list">
+        {utterances.length === 0 ? (
+          <div className="history-empty compact">
+            <strong>
+              아직 저장된 발언이 없습니다
+            </strong>
+          </div>
+        ) : (
+          utterances.map(
+            (utterance) => (
+              <button
+                key={utterance.id}
+                type="button"
+                className="history-utterance-item"
+                onClick={() =>
+                  onOpenUtterance(
+                    utterance
+                  )
+                }
+                disabled={
+                  utteranceLoadingId != null
+                }
+              >
+                <span className="history-utterance-order">
+                  {utterance.order + 1}
+                </span>
+
+                <span className="history-utterance-copy">
+                  <span>
+                    <strong>
+                      {utterance.speaker
+                        .displayName}
+                    </strong>
+                    <i
+                      className={
+                        utterance.transcription
+                          .status ===
+                        "CONFIRMED"
+                          ? "confirmed"
+                          : "draft"
+                      }
+                    >
+                      {utterance.transcription
+                        .status ===
+                      "CONFIRMED"
+                        ? "확정"
+                        : "검토 중"}
+                    </i>
+                  </span>
+                  <p>
+                    {utterance.transcription
+                      .currentText ||
+                      utterance.transcription
+                        .originalText}
+                  </p>
+                  <small>
+                    {formatDate(
+                      utterance.createdAt
+                    )}
+                  </small>
+                </span>
+
+                <span className="history-utterance-open">
+                  {utteranceLoadingId ===
+                  utterance.id
+                    ? "불러오는 중..."
+                    : "발언 보기"}
+                  <ChevronRight size={16} />
+                </span>
+              </button>
+            )
+          )
+        )}
+      </div>
+    </div>
+  );
 }
 
-// ========================================
-// 대화 제목
-// ========================================
-
-function getConversationTitle(
-  conversation
-) {
-  if (conversation.conversationTitle) {
-    return conversation.conversationTitle;
-  }
-
-  if (
-    conversation.contexts?.[0]
-      ?.title
-  ) {
-    return conversation.contexts[0]
-      .title;
-  }
-
-  if (
-    conversation.transcript
-  ) {
-    const trimmed =
-      conversation.transcript.trim();
-
-    if (
-      trimmed.length <= 28
-    ) {
-      return trimmed;
-    }
-
-    return `${trimmed.slice(
-      0,
-      28
-    )}...`;
-  }
-
-  return "새로운 대화";
+function HistoryLoading() {
+  return (
+    <div className="history-empty">
+      <div className="history-empty-icon">
+        <RotateCcw
+          size={25}
+          className="history-loading-icon"
+        />
+      </div>
+      <strong>
+        서버 대화 기록을 불러오는 중입니다
+      </strong>
+    </div>
+  );
 }
-
-// ========================================
-// 미리보기
-// ========================================
-
-function getPreview(
-  transcript
-) {
-  if (!transcript) {
-    return "발언 내용이 없습니다.";
-  }
-
-  const trimmed =
-    transcript.trim();
-
-  if (
-    trimmed.length <= 90
-  ) {
-    return trimmed;
-  }
-
-  return `${trimmed.slice(
-    0,
-    90
-  )}...`;
-}
-
-// ========================================
-// 날짜
-// ========================================
 
 function formatDate(value) {
   if (!value) {
     return "-";
   }
 
-  const date =
-    new Date(value);
+  const date = new Date(value);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return "-";
-  }
-
-  const now =
-    new Date();
-
-  const isToday =
-    now.getFullYear() ===
-      date.getFullYear() &&
-    now.getMonth() ===
-      date.getMonth() &&
-    now.getDate() ===
-      date.getDate();
-
-  const time =
-    date.toLocaleTimeString(
-      "ko-KR",
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    );
-
-  if (isToday) {
-    return `오늘 ${time}`;
   }
 
   return date.toLocaleString(

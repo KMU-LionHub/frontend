@@ -18,23 +18,6 @@ import {
 import App from "./App";
 import { apiRequest } from "./api/apiClient";
 import { storeAuthSession } from "./api/authStorage";
-import {
-  getAllConversations,
-  saveConversation,
-} from "./db/conversationDb";
-
-vi.mock("./db/conversationDb", () => ({
-  saveConversation: vi.fn()
-    .mockResolvedValue({}),
-  getAllConversations: vi.fn()
-    .mockResolvedValue([]),
-  getConversation: vi.fn()
-    .mockResolvedValue(null),
-  deleteConversation: vi.fn()
-    .mockResolvedValue(),
-  clearConversations: vi.fn()
-    .mockResolvedValue(),
-}));
 
 const originalMediaDevices =
   Object.getOwnPropertyDescriptor(
@@ -577,21 +560,6 @@ describe("App workflows", () => {
       transcriptionId: 11,
       speakerParticipantId: 34,
     });
-    expect(
-      saveConversation
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({
-        transcriptionId: 11,
-        analysisId: null,
-        conversationTitle:
-          "테스트 대화",
-        speaker: expect.objectContaining({
-          id: 34,
-          displayName: "민지",
-        }),
-      })
-    );
-
     fireEvent.click(
       screen.getByRole("button", {
         name: "AI 분석 시작",
@@ -815,18 +783,6 @@ describe("App workflows", () => {
     ).toEqual({
       type: "DISMISSED",
     });
-    expect(
-      saveConversation
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({
-        contextAnalysis:
-          expect.objectContaining({
-            fullyResolved: true,
-            ambiguityCount: 2,
-          }),
-      })
-    );
-
     fireEvent.click(
       screen.getByRole("button", {
         name: "발언 확정 후 다음",
@@ -960,40 +916,132 @@ describe("App workflows", () => {
     ).toBe(true);
   });
 
-  it("restores an unanalyzed history item to transcript review", async () => {
-    getAllConversations.mockResolvedValueOnce([
-      {
-        id: "conversation-22",
-        conversationId: 22,
-        transcriptionId: 11,
-        utteranceId: 44,
-        analysisId: null,
-        transcript: "초안 발언",
-        contexts: [],
-        annotations: [
-          {
-            id: 101,
-            order: 0,
-            originalText: "초안",
-            currentText: "초안",
-            correctedText: null,
-            confidence: 0.95,
-          },
-          {
-            id: 102,
-            order: 1,
-            originalText: "발언",
-            currentText: "발언",
-            correctedText: null,
-            confidence: 0.94,
-          },
-        ],
-        selectedContextId: null,
-        elapsedTime: 4,
-        createdAt:
-          "2026-08-21T00:00:00.000Z",
-      },
-    ]);
+  it("resumes a draft utterance from server history", async () => {
+    const fetchMock = vi.fn(
+      async (input) => {
+        const url = String(input);
+
+        if (
+          url.includes(
+            "/api/conversations?"
+          )
+        ) {
+          return jsonResponse(200, {
+            conversations: [
+              {
+                id: 5,
+                title: "서버 대화",
+                context:
+                  "저장된 대화 배경",
+                status: "ACTIVE",
+                utteranceCount: 1,
+                createdAt:
+                  "2026-08-21T00:00:00",
+                updatedAt:
+                  "2026-08-21T00:01:00",
+              },
+            ],
+            page: 0,
+            size: 12,
+            totalElements: 1,
+            totalPages: 1,
+          });
+        }
+
+        if (
+          url.endsWith(
+            "/api/conversations/5"
+          )
+        ) {
+          return jsonResponse(200, {
+            id: 5,
+            title: "서버 대화",
+            context: "저장된 대화 배경",
+            status: "ACTIVE",
+            participants: [
+              {
+                id: 8,
+                type: "SELF",
+                userId: 1,
+                displayName: "사용자",
+              },
+            ],
+            utterances: [
+              {
+                id: 12,
+                order: 0,
+                speaker: {
+                  id: 8,
+                  type: "SELF",
+                  displayName: "사용자",
+                },
+                transcription: {
+                  id: 21,
+                  status: "DRAFT",
+                  originalText: "초안 발언",
+                  currentText: "초안 발언",
+                },
+                createdAt:
+                  "2026-08-21T00:00:10",
+                updatedAt:
+                  "2026-08-21T00:00:11",
+              },
+            ],
+          });
+        }
+
+        if (
+          url.endsWith(
+            "/api/stt/transcriptions/21"
+          )
+        ) {
+          return jsonResponse(200, {
+            id: 21,
+            status: "DRAFT",
+            originalText: "초안 발언",
+            currentText: "초안 발언",
+            words: [
+              {
+                id: 101,
+                order: 0,
+                originalText: "초안",
+                currentText: "초안",
+                correctedText: null,
+                confidence: 0.95,
+                endOffsetMillis: 500,
+              },
+              {
+                id: 102,
+                order: 1,
+                originalText: "발언",
+                currentText: "발언",
+                correctedText: null,
+                confidence: 0.94,
+                endOffsetMillis: 1000,
+              },
+            ],
+          });
+        }
+
+        if (
+          url.includes(
+            "/api/context-analyses?"
+          )
+        ) {
+          return jsonResponse(200, {
+            conversationId: 5,
+            utteranceId: 12,
+            analyses: [],
+          });
+        }
+
+        return jsonResponse(404, {
+          message: "Not found",
+        });
+      }
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
 
@@ -1005,46 +1053,52 @@ describe("App workflows", () => {
 
     await waitFor(() => {
       expect(
-        screen.getAllByText("초안 발언")
-          .length
-      ).toBeGreaterThan(0);
+        screen.getByText("서버 대화")
+      ).toBeInTheDocument();
     });
-
     fireEvent.click(
       screen
-        .getAllByText("초안 발언")[0]
-        .closest(".history-item")
+        .getByText("서버 대화")
+        .closest("button")
     );
 
     await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "이 대화 이어가기",
+        })
+      ).toBeEnabled();
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "이 대화 이어가기",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: "서버 대화",
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: "초안 단어 수정",
+        })
+      ).toBeInTheDocument();
       expect(
         screen.getByRole("button", {
           name: "AI 분석 시작",
         })
       ).toBeEnabled();
       expect(
-        screen.getByText("전사 검토")
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(
+        screen.queryByText(
           "저장된 발언 보기"
         )
-      ).toBeInTheDocument();
+      ).not.toBeInTheDocument();
     });
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name:
-          "새 대화 설정으로 돌아가기",
-      })
-    );
-
-    expect(
-      screen.getByRole("heading", {
-        name: "새 대화 설정",
-      })
-    ).toBeInTheDocument();
   });
+
 });
 
 class FakeMediaRecorder {

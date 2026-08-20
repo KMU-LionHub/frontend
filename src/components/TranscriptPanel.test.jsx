@@ -235,4 +235,37 @@ describe("TranscriptPanel", () => {
       })
     ).toHaveClass("ambiguity-resolved");
   });
+
+  it("disables editing for a server history preview", () => {
+    render(
+      <TranscriptPanel
+        transcript="의사소통 도우미"
+        words={words}
+        analysisStatus={
+          RecordingPhase.COMPLETED
+        }
+        canAnalyze
+        readOnly
+        onCorrectWord={vi.fn()}
+        onRerecordToggle={vi.fn()}
+        onAnalyze={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "의사소퉁 단어 수정",
+      })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", {
+        name: "분석 완료",
+      })
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        /서버에 저장된 발언을 보는 중입니다/
+      )
+    ).toBeInTheDocument();
+  });
 });

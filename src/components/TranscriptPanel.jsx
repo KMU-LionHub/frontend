@@ -22,6 +22,7 @@ function TranscriptPanel({
   isRecording = false,
   isRerecording = false,
   isProcessing = false,
+  readOnly = false,
   canAnalyze = false,
   onCorrectWord,
   onRerecordToggle,
@@ -106,8 +107,11 @@ function TranscriptPanel({
   };
 
   const wordEditingDisabled =
-    isRecording || isProcessing;
+    isRecording ||
+    isProcessing ||
+    readOnly;
   const rerecordDisabled =
+    readOnly ||
     !transcript ||
     (
       isRecording
@@ -161,6 +165,7 @@ function TranscriptPanel({
             onClick={onAnalyze}
             disabled={
               !canAnalyze ||
+              readOnly ||
               isRecording ||
               isProcessing
             }
@@ -175,6 +180,13 @@ function TranscriptPanel({
           </button>
         </div>
       </div>
+
+      {readOnly && transcript && (
+        <div className="transcript-read-only-notice">
+          서버에 저장된 발언을 보는 중입니다. 수정하려면
+          진행 중인 대화에서 이어가기를 선택해주세요.
+        </div>
+      )}
 
       {editingWord && (
         <WordEditor

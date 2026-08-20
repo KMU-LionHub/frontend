@@ -46,9 +46,6 @@ import {
 } from "./api/conversationApi";
 
 import {
-  saveConversation,
-} from "./db/conversationDb";
-import {
   initialRecordingWorkflow,
   isProcessingPhase,
   isRecordingPhase,
@@ -262,6 +259,9 @@ function App() {
 
   const isContextResolving =
     resolvingAmbiguityId != null;
+
+  const isViewingHistoryRecord =
+    viewedConversationRecord != null;
 
   // ========================================
   // 인증 만료
@@ -860,18 +860,6 @@ function App() {
             }
           );
 
-          await persistConversation({
-            transcriptionIdValue:
-              newTranscriptionId,
-            analysisIdValue: null,
-            transcriptValue: text,
-            contextAnalysisValue:
-              null,
-            transcriptWordsValue: words,
-            elapsedTimeValue:
-              elapsedTimeValue,
-          });
-
           dispatchRecording({
             type:
               RecordingAction.READY_FOR_REVIEW,
@@ -960,30 +948,6 @@ function App() {
           }
         );
 
-        await persistConversation({
-          conversationIdValue:
-            newConversationId,
-
-          transcriptionIdValue:
-            newTranscriptionId,
-
-          utteranceIdValue:
-            newUtteranceId,
-
-          analysisIdValue: null,
-
-          transcriptValue:
-            text,
-
-          contextAnalysisValue: null,
-
-          transcriptWordsValue:
-            words,
-
-          elapsedTimeValue:
-            elapsedTimeValue,
-        });
-
         dispatchRecording({
           type:
             RecordingAction.READY_FOR_REVIEW,
@@ -1068,13 +1032,6 @@ function App() {
         setAnalysisId(analysis.id);
         setContextAnalysis(analysis);
 
-        await persistConversation({
-          analysisIdValue:
-            analysis.id,
-          contextAnalysisValue:
-            analysis,
-        });
-
         dispatchRecording({
           type:
             RecordingAction.COMPLETE,
@@ -1097,109 +1054,6 @@ function App() {
       } finally {
         operationLockRef.current =
           false;
-      }
-    };
-
-  // ========================================
-  // IndexedDB 저장
-  // ========================================
-
-  const persistConversation =
-    async ({
-      conversationIdValue =
-        conversationId,
-
-      transcriptionIdValue =
-        transcriptionId,
-
-      utteranceIdValue =
-        utteranceId,
-
-      analysisIdValue =
-        analysisId,
-
-      transcriptValue =
-        transcript,
-
-      contextAnalysisValue =
-        contextAnalysis,
-
-      transcriptWordsValue =
-        transcriptWords,
-
-      elapsedTimeValue =
-        elapsedTime,
-    } = {}) => {
-      if (
-        conversationIdValue == null ||
-        utteranceIdValue == null
-      ) {
-        return;
-      }
-
-      const speaker =
-        conversationSession
-          ?.participants
-          ?.find(
-            (participant) =>
-              participant.id ===
-              currentSpeakerParticipantId
-          ) || null;
-
-      try {
-        await saveConversation({
-          id:
-            `conversation-${conversationIdValue}-utterance-${utteranceIdValue}`,
-
-          conversationId:
-            conversationIdValue,
-
-          conversationTitle:
-            conversationSession?.title ||
-            null,
-
-          conversationContext:
-            conversationSession?.context ||
-            null,
-
-          speaker,
-
-          transcriptionId:
-            transcriptionIdValue,
-
-          utteranceId:
-            utteranceIdValue,
-
-          analysisId:
-            analysisIdValue,
-
-          transcript:
-            transcriptValue ||
-            "",
-
-          contextAnalysis:
-            contextAnalysisValue,
-
-          annotations:
-            Array.isArray(
-              transcriptWordsValue
-            )
-              ? transcriptWordsValue
-              : [],
-
-          elapsedTime:
-            elapsedTimeValue ??
-            0,
-
-          updatedAt:
-            new Date()
-              .toISOString(),
-        });
-      } catch (err) {
-        console.error(
-          "대화 기록 저장 실패:",
-          err
-        );
       }
     };
 
@@ -1274,14 +1128,6 @@ function App() {
         );
         setAnalysisId(null);
         setContextAnalysis(null);
-
-        await persistConversation({
-          analysisIdValue: null,
-          transcriptValue: updatedText,
-          contextAnalysisValue: null,
-          transcriptWordsValue:
-            updatedWords,
-        });
 
         dispatchRecording({
           type:
@@ -1371,13 +1217,6 @@ function App() {
         setAnalysisId(
           updatedAnalysis.id
         );
-
-        await persistConversation({
-          analysisIdValue:
-            updatedAnalysis.id,
-          contextAnalysisValue:
-            updatedAnalysis,
-        });
 
         return updatedAnalysis;
       } catch (err) {
@@ -1583,6 +1422,79 @@ function App() {
     setConversationId(null);
     setViewedConversationRecord(null);
     setError("");
+  };
+
+  const handleResumeConversation = ({
+    conversation,
+    record,
+  }) => {
+    resetAnalysisResult();
+    setViewedConversationRecord(null);
+    setConversationSession(conversation);
+    setConversationId(conversation.id);
+    setActiveMenu("record");
+    setError("");
+
+    const selfParticipant =
+      findSelfParticipant(
+        conversation,
+        currentUser
+      );
+
+    if (!record) {
+      setCurrentSpeakerParticipantId(
+        selfParticipant?.id ?? null
+      );
+      return;
+    }
+
+    const restoredAnalysis =
+      restoreStoredContextAnalysis(
+        record
+      );
+
+    setCurrentSpeakerParticipantId(
+      record.speaker?.id ??
+        selfParticipant?.id ??
+        null
+    );
+    setTranscriptionId(
+      record.transcriptionId
+    );
+    setUtteranceId(record.utteranceId);
+    setAnalysisId(
+      restoredAnalysis?.id ?? null
+    );
+    setTranscript(
+      record.transcript || ""
+    );
+    setTranscriptWords(
+      Array.isArray(record.annotations)
+        ? record.annotations
+        : []
+    );
+    setContextAnalysis(
+      restoredAnalysis
+    );
+    recordedDurationRef.current =
+      record.elapsedTime ?? 0;
+
+    dispatchRecording(
+      restoredAnalysis == null ||
+        restoredAnalysis.stale
+        ? {
+            type:
+              RecordingAction.READY_FOR_REVIEW,
+            elapsedTime:
+              record.elapsedTime ?? 0,
+          }
+        : {
+            type:
+              RecordingAction.RESTORE_COMPLETED,
+            elapsedTime:
+              record.elapsedTime ?? 0,
+          }
+    );
   };
 
   // ========================================
@@ -1912,6 +1824,9 @@ function App() {
               onOpenConversation={
                 handleOpenConversation
               }
+              onResumeConversation={
+                handleResumeConversation
+              }
             />
           ) : activeMenu ===
             "help" ? (
@@ -2031,6 +1946,10 @@ function App() {
                     isContextResolving
                   }
 
+                  readOnly={
+                    isViewingHistoryRecord
+                  }
+
                   ambiguities={
                     contextAnalysis
                       ?.ambiguities || []
@@ -2039,7 +1958,8 @@ function App() {
                   canAnalyze={
                     analysisStatus ===
                       RecordingPhase.REVIEWING_TRANSCRIPT &&
-                    !isContextResolving
+                    !isContextResolving &&
+                    !isViewingHistoryRecord
                   }
 
                   onCorrectWord={
@@ -2100,6 +2020,10 @@ function App() {
                   awaitingTranscriptReview={
                     analysisStatus ===
                     RecordingPhase.REVIEWING_TRANSCRIPT
+                  }
+
+                  readOnly={
+                    isViewingHistoryRecord
                   }
                 />
               </div>
@@ -2163,134 +2087,10 @@ function findSelfParticipant(
 function restoreStoredContextAnalysis(
   conversation
 ) {
-  if (conversation.contextAnalysis) {
-    return conversation.contextAnalysis;
-  }
-
-  if (
-    conversation.analysisId == null ||
-    !Array.isArray(
-      conversation.contexts
-    ) ||
-    conversation.contexts.length === 0
-  ) {
-    return null;
-  }
-
-  const grouped = new Map();
-
-  conversation.contexts.forEach(
-    (context) => {
-      const ambiguityId =
-        context.ambiguityId;
-
-      if (ambiguityId == null) {
-        return;
-      }
-
-      if (!grouped.has(ambiguityId)) {
-        grouped.set(ambiguityId, {
-          id: ambiguityId,
-          order: grouped.size + 1,
-          excerpt:
-            context.excerpt ||
-            "모호한 표현",
-          startWordId: null,
-          endWordId: null,
-          startWordOrder: null,
-          endWordOrder: null,
-          candidates: [],
-          selection: null,
-        });
-      }
-
-      const ambiguity =
-        grouped.get(ambiguityId);
-      const interpretation =
-        context.interpretation ||
-        context.title ||
-        "맥락 후보";
-
-      ambiguity.candidates.push({
-        id: context.id,
-        rank:
-          context.rank ||
-          ambiguity.candidates.length + 1,
-        interpretation,
-        inferredIntent:
-          context.inferredIntent ||
-          context.title ||
-          interpretation,
-        rationale:
-          context.rationale ||
-          context.description ||
-          "",
-        intentSimilarityScore:
-          context.intentSimilarityScore ??
-          context.confidence ??
-          0,
-        selected:
-          context.selected === true,
-      });
-
-      if (context.resolved) {
-        ambiguity.selection = {
-          type: context.wasEdited
-            ? "CUSTOM"
-            : "CANDIDATE",
-          candidateId:
-            context.wasEdited
-              ? null
-              : context.id,
-          originalCandidateText:
-            interpretation,
-          finalText:
-            context.finalText ||
-            interpretation,
-          edited:
-            context.wasEdited === true,
-          selectedAt:
-            conversation.updatedAt ||
-            null,
-          updatedAt:
-            conversation.updatedAt ||
-            null,
-        };
-      }
-    }
+  return (
+    conversation.contextAnalysis ||
+    null
   );
-
-  const ambiguities = [
-    ...grouped.values(),
-  ];
-
-  return {
-    id: conversation.analysisId,
-    conversationId:
-      conversation.conversationId,
-    utteranceId:
-      conversation.utteranceId,
-    transcriptionId:
-      conversation.transcriptionId,
-    ambiguityCount:
-      ambiguities.length,
-    needsClarification:
-      ambiguities.length > 0,
-    stale: false,
-    fullyResolved:
-      ambiguities.length > 0 &&
-      ambiguities.every(
-        (ambiguity) =>
-          ambiguity.selection != null
-      ),
-    usableResolution:
-      ambiguities.length > 0 &&
-      ambiguities.every(
-        (ambiguity) =>
-          ambiguity.selection != null
-      ),
-    ambiguities,
-  };
 }
 
 export default App;

@@ -1,5 +1,27 @@
 import { apiRequest } from "./apiClient";
 
+export function listConversations({
+  page = 0,
+  size = 20,
+} = {}) {
+  const query = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  });
+
+  return apiRequest(
+    `/api/conversations?${query}`
+  );
+}
+
+export function getConversation(
+  conversationId
+) {
+  return apiRequest(
+    `/api/conversations/${conversationId}`
+  );
+}
+
 export function createConversation({
   title,
   context,

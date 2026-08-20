@@ -1,5 +1,13 @@
 import { apiRequest } from "./apiClient";
 
+export function getTranscription(
+  transcriptionId
+) {
+  return apiRequest(
+    `/api/stt/transcriptions/${transcriptionId}`
+  );
+}
+
 export function createTranscription(
   audioBlob
 ) {

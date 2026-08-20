@@ -10,6 +10,8 @@ import { apiRequest } from "./apiClient";
 import {
   analyzeContext,
   ContextResolutionType,
+  getContextAnalysis,
+  getContextAnalysisHistory,
   resolveContextAmbiguity,
 } from "./contextAnalysisApi";
 
@@ -97,4 +99,21 @@ describe("contextAnalysisApi", () => {
       );
     }
   );
+
+  it("loads analysis history and detail", async () => {
+    await getContextAnalysisHistory({
+      conversationId: 5,
+      utteranceId: 12,
+    });
+    await getContextAnalysis(20);
+
+    expect(apiRequest).toHaveBeenNthCalledWith(
+      1,
+      "/api/context-analyses?conversationId=5&utteranceId=12"
+    );
+    expect(apiRequest).toHaveBeenNthCalledWith(
+      2,
+      "/api/context-analyses/20"
+    );
+  });
 });
