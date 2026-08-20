@@ -1,8 +1,11 @@
 import { LogOut, User } from "lucide-react";
+import {
+  RecordingPhase,
+} from "../workflow/recordingWorkflow";
 
 function Header({
-  isRecording = false,
-  isProcessing = false,
+  workflowStatus =
+    RecordingPhase.IDLE,
   nickname,
   email,
   onLogout,
@@ -17,6 +20,11 @@ function Header({
     localStorage.getItem("email") ||
     "Context STT";
 
+  const workflowLabel =
+    getWorkflowLabel(
+      workflowStatus
+    );
+
   return (
     <header className="dashboard-header">
 
@@ -27,15 +35,12 @@ function Header({
           정보 손실 없는 대화 도우미
         </h1>
 
-        {(isRecording ||
-          isProcessing) && (
+        {workflowLabel && (
           <div className="recording-status">
 
             <span className="recording-dot" />
 
-            {isRecording
-              ? "녹음 중"
-              : "음성 처리 중"}
+            {workflowLabel}
 
           </div>
         )}
@@ -74,6 +79,24 @@ function Header({
 
     </header>
   );
+}
+
+function getWorkflowLabel(status) {
+  switch (status) {
+    case RecordingPhase.REQUESTING_PERMISSION:
+      return "마이크 준비 중";
+    case RecordingPhase.RECORDING:
+      return "녹음 중";
+    case RecordingPhase.TRANSCRIBING:
+    case RecordingPhase.PREPARING_TRANSCRIPT:
+      return "음성 처리 중";
+    case RecordingPhase.UPDATING_TRANSCRIPT:
+      return "단어 수정 중";
+    case RecordingPhase.ANALYZING:
+      return "AI 분석 중";
+    default:
+      return "";
+  }
 }
 
 export default Header;

@@ -8,6 +8,7 @@ import {
   initialRecordingWorkflow,
   isProcessingPhase,
   RecordingAction,
+  RecordingMode,
   RecordingPhase,
   recordingWorkflowReducer,
 } from "./recordingWorkflow";
@@ -18,6 +19,7 @@ describe("recordingWorkflowReducer", () => {
       {
         type:
           RecordingAction.REQUEST_PERMISSION,
+        mode: RecordingMode.NEW,
       },
       {
         type:
@@ -37,6 +39,10 @@ describe("recordingWorkflowReducer", () => {
       },
       {
         type:
+          RecordingAction.READY_FOR_REVIEW,
+      },
+      {
+        type:
           RecordingAction.START_ANALYSIS,
       },
       {
@@ -53,6 +59,7 @@ describe("recordingWorkflowReducer", () => {
       phase: RecordingPhase.COMPLETED,
       progress: 100,
       elapsedTime: 7,
+      mode: null,
     });
   });
 
@@ -123,6 +130,34 @@ describe("recordingWorkflowReducer", () => {
       phase: RecordingPhase.COMPLETED,
       progress: 100,
       elapsedTime: 12,
+      mode: null,
+    });
+  });
+
+  it("preserves the previous duration while requesting a re-recording", () => {
+    const state =
+      recordingWorkflowReducer(
+        {
+          phase:
+            RecordingPhase.COMPLETED,
+          progress: 100,
+          elapsedTime: 15,
+          mode: null,
+        },
+        {
+          type:
+            RecordingAction.REQUEST_PERMISSION,
+          mode:
+            RecordingMode.RERECORD,
+        }
+      );
+
+    expect(state).toEqual({
+      phase:
+        RecordingPhase.REQUESTING_PERMISSION,
+      progress: 0,
+      elapsedTime: 15,
+      mode: RecordingMode.RERECORD,
     });
   });
 });

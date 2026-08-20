@@ -5,11 +5,21 @@ export const RecordingPhase =
       "REQUESTING_PERMISSION",
     RECORDING: "RECORDING",
     TRANSCRIBING: "TRANSCRIBING",
-    PREPARING_ANALYSIS:
-      "PREPARING_ANALYSIS",
+    PREPARING_TRANSCRIPT:
+      "PREPARING_TRANSCRIPT",
+    REVIEWING_TRANSCRIPT:
+      "REVIEWING_TRANSCRIPT",
+    UPDATING_TRANSCRIPT:
+      "UPDATING_TRANSCRIPT",
     ANALYZING: "ANALYZING",
     COMPLETED: "COMPLETED",
     FAILED: "FAILED",
+  });
+
+export const RecordingMode =
+  Object.freeze({
+    NEW: "NEW",
+    RERECORD: "RERECORD",
   });
 
 export const RecordingAction =
@@ -21,6 +31,10 @@ export const RecordingAction =
     STOP_RECORDING: "STOP_RECORDING",
     TRANSCRIPTION_COMPLETE:
       "TRANSCRIPTION_COMPLETE",
+    READY_FOR_REVIEW:
+      "READY_FOR_REVIEW",
+    START_TRANSCRIPT_UPDATE:
+      "START_TRANSCRIPT_UPDATE",
     START_ANALYSIS: "START_ANALYSIS",
     COMPLETE: "COMPLETE",
     FAIL: "FAIL",
@@ -34,6 +48,7 @@ export const initialRecordingWorkflow =
     phase: RecordingPhase.IDLE,
     progress: 0,
     elapsedTime: 0,
+    mode: null,
   });
 
 export function recordingWorkflowReducer(
@@ -46,7 +61,14 @@ export function recordingWorkflowReducer(
         phase:
           RecordingPhase.REQUESTING_PERMISSION,
         progress: 0,
-        elapsedTime: 0,
+        elapsedTime:
+          action.mode ===
+          RecordingMode.RERECORD
+            ? state.elapsedTime
+            : 0,
+        mode:
+          action.mode ||
+          RecordingMode.NEW,
       };
 
     case RecordingAction.START_RECORDING:
@@ -54,6 +76,9 @@ export function recordingWorkflowReducer(
         phase: RecordingPhase.RECORDING,
         progress: 0,
         elapsedTime: 0,
+        mode:
+          state.mode ||
+          RecordingMode.NEW,
       };
 
     case RecordingAction.TICK:
@@ -78,14 +103,39 @@ export function recordingWorkflowReducer(
           normalizeElapsedTime(
             action.elapsedTime
           ),
+        mode: state.mode,
       };
 
     case RecordingAction.TRANSCRIPTION_COMPLETE:
       return {
         ...state,
         phase:
-          RecordingPhase.PREPARING_ANALYSIS,
+          RecordingPhase.PREPARING_TRANSCRIPT,
         progress: 40,
+      };
+
+    case RecordingAction.READY_FOR_REVIEW:
+      return {
+        ...state,
+        phase:
+          RecordingPhase.REVIEWING_TRANSCRIPT,
+        progress: 50,
+        elapsedTime:
+          action.elapsedTime == null
+            ? state.elapsedTime
+            : normalizeElapsedTime(
+                action.elapsedTime
+              ),
+        mode: null,
+      };
+
+    case RecordingAction.START_TRANSCRIPT_UPDATE:
+      return {
+        ...state,
+        phase:
+          RecordingPhase.UPDATING_TRANSCRIPT,
+        progress: 50,
+        mode: null,
       };
 
     case RecordingAction.START_ANALYSIS:
@@ -93,6 +143,7 @@ export function recordingWorkflowReducer(
         ...state,
         phase: RecordingPhase.ANALYZING,
         progress: 70,
+        mode: null,
       };
 
     case RecordingAction.COMPLETE:
@@ -100,6 +151,7 @@ export function recordingWorkflowReducer(
         ...state,
         phase: RecordingPhase.COMPLETED,
         progress: 100,
+        mode: null,
       };
 
     case RecordingAction.FAIL:
@@ -107,6 +159,7 @@ export function recordingWorkflowReducer(
         ...state,
         phase: RecordingPhase.FAILED,
         progress: 0,
+        mode: null,
       };
 
     case RecordingAction.RESTORE_COMPLETED:
@@ -117,6 +170,7 @@ export function recordingWorkflowReducer(
           normalizeElapsedTime(
             action.elapsedTime
           ),
+        mode: null,
       };
 
     case RecordingAction.RESET:
@@ -138,7 +192,8 @@ export function isProcessingPhase(phase) {
   return [
     RecordingPhase.REQUESTING_PERMISSION,
     RecordingPhase.TRANSCRIBING,
-    RecordingPhase.PREPARING_ANALYSIS,
+    RecordingPhase.PREPARING_TRANSCRIPT,
+    RecordingPhase.UPDATING_TRANSCRIPT,
     RecordingPhase.ANALYZING,
   ].includes(phase);
 }

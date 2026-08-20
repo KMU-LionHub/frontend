@@ -16,16 +16,16 @@ function HelpPage() {
         "녹음 화면의 마이크 버튼을 눌러 대화를 녹음합니다. 다시 누르면 녹음이 종료됩니다.",
     },
     {
-      icon: BrainCircuit,
-      title: "2. AI 분석",
+      icon: MessageSquareText,
+      title: "2. 전사 검토",
       description:
-        "녹음이 종료되면 음성을 서버로 전송하고 STT 및 맥락 분석을 진행합니다.",
+        "녹음이 종료되면 STT 결과를 확인합니다. 잘못 인식된 단어를 선택해 수정하거나 전체 발언을 다시 녹음할 수 있습니다.",
     },
     {
-      icon: MessageSquareText,
-      title: "3. 분석 결과 확인",
+      icon: BrainCircuit,
+      title: "3. AI 분석",
       description:
-        "변환된 발언 전문과 AI가 분석한 여러 개의 맥락 후보를 확인할 수 있습니다.",
+        "전사를 검토한 뒤 AI 분석 시작 버튼을 누르면 발언의 가능한 맥락 후보를 확인할 수 있습니다.",
     },
     {
       icon: ShieldCheck,
