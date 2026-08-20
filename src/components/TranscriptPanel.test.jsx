@@ -176,4 +176,63 @@ describe("TranscriptPanel", () => {
       onRerecordToggle
     ).toHaveBeenCalledOnce();
   });
+
+  it("marks words that belong to an ambiguity span", () => {
+    const ambiguity = {
+      id: 501,
+      startWordId: 10,
+      endWordId: 10,
+      startWordOrder: 0,
+      endWordOrder: 0,
+      selection: null,
+    };
+    const { rerender } = render(
+      <TranscriptPanel
+        transcript="의사소퉁 도우미"
+        words={words}
+        ambiguities={[ambiguity]}
+        analysisStatus={
+          RecordingPhase.COMPLETED
+        }
+        onCorrectWord={vi.fn()}
+        onRerecordToggle={vi.fn()}
+        onAnalyze={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "의사소퉁 단어 수정",
+      })
+    ).toHaveClass("ambiguity-pending");
+
+    rerender(
+      <TranscriptPanel
+        transcript="의사소퉁 도우미"
+        words={words}
+        ambiguities={[
+          {
+            ...ambiguity,
+            selection: {
+              type: "CANDIDATE",
+              candidateId: 1,
+              finalText: "의사소통",
+            },
+          },
+        ]}
+        analysisStatus={
+          RecordingPhase.COMPLETED
+        }
+        onCorrectWord={vi.fn()}
+        onRerecordToggle={vi.fn()}
+        onAnalyze={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "의사소퉁 단어 수정",
+      })
+    ).toHaveClass("ambiguity-resolved");
+  });
 });

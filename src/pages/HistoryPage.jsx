@@ -363,13 +363,10 @@ function HistoryPage({
                     )}
 
                     <span>
-                      맥락 후보{" "}
-                      {
+                      모호한 구간{" "}
+                      {getAmbiguityCount(
                         conversation
-                          .contexts
-                          ?.length ??
-                        0
-                      }
+                      )}
                       개
                     </span>
 
@@ -384,10 +381,11 @@ function HistoryPage({
                       개
                     </span>
 
-                    {conversation.selectedContextId !=
-                      null && (
+                    {conversation
+                      .contextAnalysis
+                      ?.usableResolution && (
                       <span className="history-selected-badge">
-                        맥락 선택 완료
+                        모든 맥락 확정
                       </span>
                     )}
                   </div>
@@ -426,6 +424,38 @@ function HistoryPage({
       )}
     </div>
   );
+}
+
+function getAmbiguityCount(
+  conversation
+) {
+  if (
+    conversation.contextAnalysis
+      ?.ambiguityCount != null
+  ) {
+    return conversation.contextAnalysis
+      .ambiguityCount;
+  }
+
+  if (
+    !Array.isArray(
+      conversation.contexts
+    )
+  ) {
+    return 0;
+  }
+
+  return new Set(
+    conversation.contexts
+      .map(
+        (context) =>
+          context.ambiguityId
+      )
+      .filter(
+        (ambiguityId) =>
+          ambiguityId != null
+      )
+  ).size;
 }
 
 // ========================================

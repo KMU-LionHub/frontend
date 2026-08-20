@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import {
   afterEach,
@@ -182,6 +183,7 @@ describe("App workflows", () => {
     let transcriptionCount = 0;
     let utteranceCount = 0;
     let analysisCount = 0;
+    let resolutionCount = 0;
     const fetchMock = vi.fn(
       async (input) => {
         const url = String(input);
@@ -379,10 +381,42 @@ describe("App workflows", () => {
           )
         ) {
           analysisCount += 1;
+
+          if (analysisCount === 2) {
+            return jsonResponse(
+              201,
+              createAmbiguousAnalysis()
+            );
+          }
+
           return jsonResponse(201, {
             id: 54 + analysisCount,
+            conversationId: 22,
+            utteranceId:
+              utteranceCount > 1
+                ? 45
+                : 44,
+            ambiguityCount: 0,
+            needsClarification: false,
+            stale: false,
+            fullyResolved: true,
+            usableResolution: true,
             ambiguities: [],
           });
+        }
+
+        if (url.endsWith("/resolution")) {
+          resolutionCount += 1;
+
+          return jsonResponse(
+            200,
+            createAmbiguousAnalysis({
+              firstResolved:
+                resolutionCount >= 1,
+              secondResolved:
+                resolutionCount >= 2,
+            })
+          );
         }
 
         if (url.endsWith("/close")) {
@@ -690,11 +724,108 @@ describe("App workflows", () => {
 
     await waitFor(() => {
       expect(
+        screen.getByRole("heading", {
+          name: "“다시 말한”",
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: "발언 확정 후 다음",
+        })
+      ).toBeDisabled();
+    });
+
+    const firstAmbiguity = screen
+      .getByRole("heading", {
+        name: "“다시 말한”",
+      })
+      .closest("article");
+
+    fireEvent.click(
+      within(firstAmbiguity)
+        .getByText(
+          "발언을 다시 표현했다는 의미"
+        )
+        .closest("button")
+    );
+    fireEvent.click(
+      within(firstAmbiguity).getByRole(
+        "button",
+        {
+          name: "선택한 후보로 확정",
+        }
+      )
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("1/2개 확정")
+      ).toBeInTheDocument();
+    });
+
+    const secondAmbiguity = screen
+      .getByRole("heading", {
+        name: "“문장”",
+      })
+      .closest("article");
+
+    fireEvent.click(
+      within(secondAmbiguity).getByRole(
+        "button",
+        { name: "무시" }
+      )
+    );
+    fireEvent.click(
+      within(secondAmbiguity).getByRole(
+        "button",
+        {
+          name: "모호성 무시로 확정",
+        }
+      )
+    );
+
+    await waitFor(() => {
+      expect(
         screen.getByRole("button", {
           name: "발언 확정 후 다음",
         })
       ).toBeEnabled();
     });
+
+    const resolutionRequests =
+      fetchMock.mock.calls.filter(
+        ([url]) =>
+          String(url).endsWith(
+            "/resolution"
+          )
+      );
+
+    expect(
+      JSON.parse(
+        resolutionRequests[0][1].body
+      )
+    ).toEqual({
+      type: "CANDIDATE",
+      candidateId: 601,
+    });
+    expect(
+      JSON.parse(
+        resolutionRequests[1][1].body
+      )
+    ).toEqual({
+      type: "DISMISSED",
+    });
+    expect(
+      saveConversation
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contextAnalysis:
+          expect.objectContaining({
+            fullyResolved: true,
+            ambiguityCount: 2,
+          }),
+      })
+    );
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -894,7 +1025,25 @@ describe("App workflows", () => {
       expect(
         screen.getByText("전사 검토")
       ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "저장된 발언 보기"
+        )
+      ).toBeInTheDocument();
     });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name:
+          "새 대화 설정으로 돌아가기",
+      })
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "새 대화 설정",
+      })
+    ).toBeInTheDocument();
   });
 });
 
@@ -942,4 +1091,122 @@ function jsonResponse(status, body) {
       },
     }
   );
+}
+
+function createAmbiguousAnalysis({
+  firstResolved = false,
+  secondResolved = false,
+} = {}) {
+  return {
+    id: 56,
+    conversationId: 22,
+    utteranceId: 44,
+    transcriptionId: 12,
+    ambiguityCount: 2,
+    needsClarification: true,
+    stale: false,
+    fullyResolved:
+      firstResolved && secondResolved,
+    usableResolution:
+      firstResolved && secondResolved,
+    ambiguities: [
+      {
+        id: 501,
+        order: 1,
+        excerpt: "다시 말한",
+        startWordId: 201,
+        endWordId: 201,
+        startWordOrder: 0,
+        endWordOrder: 0,
+        candidateCount: 2,
+        selection: firstResolved
+          ? {
+              type: "CANDIDATE",
+              candidateId: 601,
+              finalText:
+                "발언을 다시 표현했다는 의미",
+              edited: false,
+              selectedAt:
+                "2026-08-21T00:00:00",
+              updatedAt:
+                "2026-08-21T00:00:01",
+            }
+          : null,
+        candidates: [
+          {
+            id: 601,
+            rank: 1,
+            interpretation:
+              "발언을 다시 표현했다는 의미",
+            inferredIntent:
+              "이전 말을 정정함",
+            rationale:
+              "재발언 흐름과 일치합니다.",
+            intentSimilarityScore: 0.88,
+            selected: firstResolved,
+          },
+          {
+            id: 602,
+            rank: 2,
+            interpretation:
+              "같은 내용을 반복한다는 의미",
+            inferredIntent:
+              "강조를 위해 반복함",
+            rationale:
+              "반복 발화일 수도 있습니다.",
+            intentSimilarityScore: 0.12,
+            selected: false,
+          },
+        ],
+      },
+      {
+        id: 502,
+        order: 2,
+        excerpt: "문장",
+        startWordId: 202,
+        endWordId: 202,
+        startWordOrder: 1,
+        endWordOrder: 1,
+        candidateCount: 2,
+        selection: secondResolved
+          ? {
+              type: "DISMISSED",
+              candidateId: null,
+              finalText: null,
+              edited: false,
+              selectedAt:
+                "2026-08-21T00:00:02",
+              updatedAt:
+                "2026-08-21T00:00:02",
+            }
+          : null,
+        candidates: [
+          {
+            id: 603,
+            rank: 1,
+            interpretation:
+              "말한 내용 전체를 가리킴",
+            inferredIntent:
+              "발화 내용을 지칭함",
+            rationale:
+              "일반적인 문장 의미입니다.",
+            intentSimilarityScore: 0.9,
+            selected: false,
+          },
+          {
+            id: 604,
+            rank: 2,
+            interpretation:
+              "글로 적은 문장을 가리킴",
+            inferredIntent:
+              "문서의 문장을 지칭함",
+            rationale:
+              "글쓰기 문맥일 수도 있습니다.",
+            intentSimilarityScore: 0.1,
+            selected: false,
+          },
+        ],
+      },
+    ],
+  };
 }

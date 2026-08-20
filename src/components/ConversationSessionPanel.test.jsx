@@ -189,4 +189,40 @@ describe("ConversationSessionPanel", () => {
       onFinalizeUtterance
     ).toHaveBeenCalledOnce();
   });
+
+  it("shows a read-only banner for a stored utterance", () => {
+    const onExitHistory = vi.fn();
+
+    render(
+      <ConversationSessionPanel
+        historyRecord={{
+          conversationTitle:
+            "저장된 여행 대화",
+          conversationContext:
+            "친구와 여행 이야기",
+          speaker: {
+            displayName: "민지",
+          },
+        }}
+        onExitHistory={onExitHistory}
+      />
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "저장된 여행 대화",
+      })
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name:
+          "새 대화 설정으로 돌아가기",
+      })
+    );
+
+    expect(
+      onExitHistory
+    ).toHaveBeenCalledOnce();
+  });
 });

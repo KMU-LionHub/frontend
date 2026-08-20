@@ -16,6 +16,7 @@ import {
 function TranscriptPanel({
   transcript = "",
   words = [],
+  ambiguities = [],
   analysisStatus =
     RecordingPhase.IDLE,
   isRecording = false,
@@ -223,6 +224,11 @@ function TranscriptPanel({
                         Boolean(
                           word.correctedText
                         );
+                      const ambiguity =
+                        getWordAmbiguity(
+                          word,
+                          ambiguities
+                        );
 
                       return (
                         <button
@@ -235,6 +241,11 @@ function TranscriptPanel({
                               : "",
                             isCorrected
                               ? "corrected"
+                              : "",
+                            ambiguity
+                              ? ambiguity.selection
+                                ? "ambiguity-resolved"
+                                : "ambiguity-pending"
                               : "",
                             editingWordId ===
                             word.id
@@ -267,6 +278,14 @@ function TranscriptPanel({
                               수정됨
                             </span>
                           )}
+
+                          {ambiguity && (
+                            <span className="transcript-word-context-mark">
+                              {ambiguity.selection
+                                ? "맥락 확정"
+                                : "맥락 확인"}
+                            </span>
+                          )}
                         </button>
                       );
                     }
@@ -282,6 +301,11 @@ function TranscriptPanel({
                   <span>
                     <i className="corrected-dot" />
                     직접 수정한 단어
+                  </span>
+
+                  <span>
+                    <i className="ambiguity-dot" />
+                    맥락 확인이 필요한 단어
                   </span>
                 </div>
               </div>
@@ -435,6 +459,40 @@ function getWordConfidence(word) {
   return Math.min(
     1,
     Math.max(0, confidence)
+  );
+}
+
+function getWordAmbiguity(
+  word,
+  ambiguities
+) {
+  const wordOrder = Number(word.order);
+
+  return (
+    ambiguities.find((ambiguity) => {
+      if (
+        Number.isInteger(
+          ambiguity.startWordOrder
+        ) &&
+        Number.isInteger(
+          ambiguity.endWordOrder
+        ) &&
+        Number.isFinite(wordOrder)
+      ) {
+        return (
+          wordOrder >=
+            ambiguity.startWordOrder &&
+          wordOrder <=
+            ambiguity.endWordOrder
+        );
+      }
+
+      return (
+        word.id ===
+          ambiguity.startWordId ||
+        word.id === ambiguity.endWordId
+      );
+    }) || null
   );
 }
 
