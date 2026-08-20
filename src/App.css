@@ -56,6 +56,11 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:focus-visible {
+  outline: 3px solid rgba(103, 89, 237, 0.42);
+  outline-offset: 2px;
+}
+
 
 /* ========================================
    전체 레이아웃
@@ -285,6 +290,10 @@ button {
   box-shadow:
     inset 2px 0 0
     #7365eb;
+}
+
+.sidebar button:focus-visible {
+  outline-color: #a99fff;
 }
 
 
@@ -580,8 +589,8 @@ button {
     왼쪽은 위가 조금 더 큼
   */
   grid-template-rows:
-    minmax(0, 1.04fr)
-    minmax(0, 0.96fr);
+    minmax(440px, 1.04fr)
+    minmax(300px, 0.96fr);
 
   gap: 16px;
 }
@@ -606,8 +615,8 @@ button {
     ★ 맥락 후보 분석은 크게
   */
   grid-template-rows:
-    minmax(0, 0.78fr)
-    minmax(0, 1.22fr);
+    minmax(300px, 0.78fr)
+    minmax(440px, 1.22fr);
 
   gap: 16px;
 }
@@ -802,6 +811,8 @@ button {
   display: inline-flex;
   align-items: center;
 
+  flex-shrink: 0;
+
   gap: 8px;
 
   padding:
@@ -816,6 +827,8 @@ button {
 
   font-size: 10px;
   font-weight: 700;
+
+  white-space: nowrap;
 }
 
 .listening-badge span {
@@ -1047,7 +1060,7 @@ button {
 ======================================== */
 
 .waveform {
-  height: 60px;
+  height: 64px;
 
   margin-top: 12px;
 
@@ -2798,10 +2811,6 @@ button {
   }
 }
 
-.analysis-progress-panel h2 {
-  transform: translateX(-60px) !important;
-}
-
 /* =========================================================
    오른쪽 패널 전체 디자인 보정
    - 분석 진행 상태
@@ -2831,13 +2840,6 @@ button {
 /* "분석 진행 상태" */
 .analysis-progress-panel .panel-heading-row h2 {
   margin: 0;
-
-  position: relative;
-
-  /* 제목만 살짝 왼쪽 */
-  left: -4px;
-
-  transform: none !important;
 
   color: #20222b;
 
@@ -3254,10 +3256,6 @@ button {
     12px;
 
   font-size: 10px;
-}
-
-.analysis-progress-panel h2 {
-  transform: translateX(-50px) !important;
 }
 
 /* ========================================
@@ -4423,8 +4421,11 @@ button {
 }
 
 .record-workspace .dashboard-grid {
-  height: calc(100vh - 300px);
-  min-height: 650px;
+  height: auto;
+  min-height: max(
+    756px,
+    calc(100vh - 300px)
+  );
 }
 
 .conversation-session-card {
@@ -4826,5 +4827,13 @@ button {
 
   .conversation-speaker-label {
     flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recording-dot,
+  .waveform.active span,
+  .history-loading-icon {
+    animation: none;
   }
 }

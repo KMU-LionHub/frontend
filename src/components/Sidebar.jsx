@@ -42,7 +42,10 @@ function Sidebar({
         </div>
       </div>
 
-      <nav className="sidebar-menu">
+      <nav
+        aria-label="주요 메뉴"
+        className="sidebar-menu"
+      >
         {menuItems.map((item) => {
           const Icon = item.icon;
 
@@ -54,6 +57,11 @@ function Sidebar({
                 activeMenu === item.id
                   ? "sidebar-menu-item active"
                   : "sidebar-menu-item"
+              }
+              aria-current={
+                activeMenu === item.id
+                  ? "page"
+                  : undefined
               }
               onClick={() =>
                 onMenuChange?.(item.id)
