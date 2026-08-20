@@ -33,6 +33,9 @@ describe("RecordingPanel", () => {
       })
     ).toBeDisabled();
     expect(
+      screen.getByRole("status")
+    ).toHaveTextContent("음성 처리 중");
+    expect(
       screen.getByText(
         "음성을 처리하고 있습니다. 잠시만 기다려주세요."
       )

@@ -70,6 +70,7 @@ function Header({
           type="button"
           className="header-logout-button"
           onClick={onLogout}
+          aria-label="로그아웃"
           title="로그아웃"
         >
           <LogOut size={17} />

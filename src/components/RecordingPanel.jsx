@@ -26,11 +26,14 @@ function RecordingPanel({
         </div>
 
         <div
+          aria-atomic="true"
+          aria-live="polite"
           className={
             isRecording
               ? "listening-badge active"
               : "listening-badge"
           }
+          role="status"
         >
           <span />
 
