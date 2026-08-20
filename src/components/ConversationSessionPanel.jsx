@@ -1,5 +1,6 @@
 import {
   CheckCircle2,
+  History,
   MessageSquarePlus,
   Plus,
   UserRound,
@@ -10,6 +11,7 @@ import { useState } from "react";
 
 function ConversationSessionPanel({
   session = null,
+  historyRecord = null,
   currentSpeakerParticipantId = null,
   hasCurrentUtterance = false,
   canFinalizeUtterance = false,
@@ -18,6 +20,7 @@ function ConversationSessionPanel({
   onSelectSpeaker,
   onFinalizeUtterance,
   onCloseSession,
+  onExitHistory,
 }) {
   const [title, setTitle] =
     useState("");
@@ -100,6 +103,43 @@ function ConversationSessionPanel({
       );
     }
   };
+
+  if (!session && historyRecord) {
+    return (
+      <section className="conversation-session-card history-view">
+        <div className="conversation-session-heading">
+          <div className="conversation-session-icon">
+            <History size={19} />
+          </div>
+
+          <div>
+            <span className="conversation-history-badge">
+              저장된 발언 보기
+            </span>
+            <h2>
+              {historyRecord.conversationTitle ||
+                "저장된 대화"}
+            </h2>
+            <p>
+              {historyRecord.speaker
+                ?.displayName &&
+                `화자 ${historyRecord.speaker.displayName}`}
+              {historyRecord.conversationContext &&
+                ` · ${historyRecord.conversationContext}`}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="conversation-history-exit"
+          onClick={onExitHistory}
+        >
+          새 대화 설정으로 돌아가기
+        </button>
+      </section>
+    );
+  }
 
   if (!session) {
     return (

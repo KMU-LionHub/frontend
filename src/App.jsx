@@ -26,9 +26,12 @@ import {
   logout,
 } from "./api/authApi";
 import {
-  apiRequest,
   subscribeToAuthExpiration,
 } from "./api/apiClient";
+import {
+  analyzeContext,
+  resolveContextAmbiguity,
+} from "./api/contextAnalysisApi";
 import {
   correctTranscriptionWord,
   createTranscription,
@@ -93,6 +96,11 @@ function App() {
   const [
     conversationSession,
     setConversationSession,
+  ] = useState(null);
+
+  const [
+    viewedConversationRecord,
+    setViewedConversationRecord,
   ] = useState(null);
 
   const [
@@ -217,9 +225,9 @@ function App() {
   ] = useState("");
 
   const [
-    contexts,
-    setContexts,
-  ] = useState([]);
+    contextAnalysis,
+    setContextAnalysis,
+  ] = useState(null);
 
   const [
     transcriptWords,
@@ -227,8 +235,8 @@ function App() {
   ] = useState([]);
 
   const [
-    selectedContextId,
-    setSelectedContextId,
+    resolvingAmbiguityId,
+    setResolvingAmbiguityId,
   ] = useState(null);
 
   const [
@@ -243,15 +251,17 @@ function App() {
     hasCurrentUtterance &&
     analysisStatus ===
       RecordingPhase.COMPLETED &&
-    areAllAmbiguitiesResolved(
-      contexts
-    );
+    contextAnalysis?.usableResolution ===
+      true;
 
   const canStartNewUtterance =
     conversationSession?.id != null &&
     currentSpeakerParticipantId != null &&
     !hasCurrentUtterance &&
     !isSessionPending;
+
+  const isContextResolving =
+    resolvingAmbiguityId != null;
 
   // ========================================
   // 인증 만료
@@ -294,6 +304,7 @@ function App() {
         setAuthPage("login");
         setActiveMenu("record");
         setConversationSession(null);
+        setViewedConversationRecord(null);
         setCurrentSpeakerParticipantId(
           null
         );
@@ -303,9 +314,9 @@ function App() {
         setUtteranceId(null);
         setAnalysisId(null);
         setTranscript("");
-        setContexts([]);
+        setContextAnalysis(null);
         setTranscriptWords([]);
-        setSelectedContextId(null);
+        setResolvingAmbiguityId(null);
         setError("");
 
         dispatchRecording({
@@ -822,8 +833,7 @@ function App() {
           setTranscript(text);
           setTranscriptWords(words);
           setAnalysisId(null);
-          setContexts([]);
-          setSelectedContextId(null);
+          setContextAnalysis(null);
           setConversationSession(
             (current) => {
               if (!current) {
@@ -855,10 +865,9 @@ function App() {
               newTranscriptionId,
             analysisIdValue: null,
             transcriptValue: text,
-            contextsValue: [],
-            transcriptWordsValue: words,
-            selectedContextIdValue:
+            contextAnalysisValue:
               null,
+            transcriptWordsValue: words,
             elapsedTimeValue:
               elapsedTimeValue,
           });
@@ -966,12 +975,10 @@ function App() {
           transcriptValue:
             text,
 
-          contextsValue: [],
+          contextAnalysisValue: null,
 
           transcriptWordsValue:
             words,
-
-          selectedContextIdValue: null,
 
           elapsedTimeValue:
             elapsedTimeValue,
@@ -1012,36 +1019,6 @@ function App() {
     };
 
   // ========================================
-  // AI 맥락 분석
-  // ========================================
-
-  const createContextAnalysis =
-    async ({
-      conversationId,
-      utteranceId,
-    }) => {
-      return apiRequest(
-        "/api/context-analyses",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            conversationId,
-            utteranceId,
-            candidateCount: 3,
-            model:
-              "GEMINI_3_7_FLASH",
-          }),
-          defaultErrorMessage:
-            "발언의 맥락을 분석하지 못했습니다.",
-        }
-      );
-    };
-
-  // ========================================
   // 전사 검토 후 AI 분석 시작
   // ========================================
 
@@ -1077,7 +1054,7 @@ function App() {
 
       try {
         const analysis =
-          await createContextAnalysis({
+          await analyzeContext({
             conversationId,
             utteranceId,
           });
@@ -1088,34 +1065,14 @@ function App() {
           );
         }
 
-        const normalizedContexts =
-          normalizeContextCandidates(
-            analysis
-          );
-        const alreadySelected =
-          normalizedContexts.find(
-            (context) =>
-              context.selected
-          );
-        const newSelectedContextId =
-          alreadySelected?.id ??
-          null;
-
         setAnalysisId(analysis.id);
-        setContexts(
-          normalizedContexts
-        );
-        setSelectedContextId(
-          newSelectedContextId
-        );
+        setContextAnalysis(analysis);
 
         await persistConversation({
           analysisIdValue:
             analysis.id,
-          contextsValue:
-            normalizedContexts,
-          selectedContextIdValue:
-            newSelectedContextId,
+          contextAnalysisValue:
+            analysis,
         });
 
         dispatchRecording({
@@ -1164,14 +1121,11 @@ function App() {
       transcriptValue =
         transcript,
 
-      contextsValue =
-        contexts,
+      contextAnalysisValue =
+        contextAnalysis,
 
       transcriptWordsValue =
         transcriptWords,
-
-      selectedContextIdValue =
-        selectedContextId,
 
       elapsedTimeValue =
         elapsedTime,
@@ -1223,12 +1177,8 @@ function App() {
             transcriptValue ||
             "",
 
-          contexts:
-            Array.isArray(
-              contextsValue
-            )
-              ? contextsValue
-              : [],
+          contextAnalysis:
+            contextAnalysisValue,
 
           annotations:
             Array.isArray(
@@ -1236,10 +1186,6 @@ function App() {
             )
               ? transcriptWordsValue
               : [],
-
-          selectedContextId:
-            selectedContextIdValue ??
-            null,
 
           elapsedTime:
             elapsedTimeValue ??
@@ -1327,17 +1273,14 @@ function App() {
           updatedWords
         );
         setAnalysisId(null);
-        setContexts([]);
-        setSelectedContextId(null);
+        setContextAnalysis(null);
 
         await persistConversation({
           analysisIdValue: null,
           transcriptValue: updatedText,
-          contextsValue: [],
+          contextAnalysisValue: null,
           transcriptWordsValue:
             updatedWords,
-          selectedContextIdValue:
-            null,
         });
 
         dispatchRecording({
@@ -1371,350 +1314,86 @@ function App() {
     };
 
   // ========================================
-  // 후보 선택
+  // 모호한 단어 구간 맥락 확정
   // ========================================
 
-  const handleSelectContext =
+  const handleResolveAmbiguity =
     async (
-      contextId
+      ambiguityId,
+      resolution
     ) => {
-      try {
-        setError("");
-
-        const context =
-          contexts.find(
-            (item) =>
-              item.id ===
-              contextId
-          );
-
-        if (!context) {
-          throw new Error(
-            "선택한 맥락 후보를 찾을 수 없습니다."
-          );
-        }
-
-        const candidateId =
-          Number(
-            context.id
-          );
-
-        if (
-          !Number.isFinite(
-            candidateId
-          )
-        ) {
-          throw new Error(
-            "후보 ID가 올바르지 않습니다."
-          );
-        }
-
-        await apiRequest(
-          `/api/context-analyses/${context.analysisId}/ambiguities/${context.ambiguityId}/selection`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({
-              candidateId,
-            }),
-            defaultErrorMessage:
-              "맥락 후보를 선택하지 못했습니다.",
-          }
-        );
-
-        const updatedContexts =
-          contexts.map(
-            (item) => ({
-              ...item,
-
-              selected:
-                item.id ===
-                contextId,
-            })
-          );
-
-        setContexts(
-          updatedContexts
-        );
-
-        setSelectedContextId(
-          contextId
-        );
-
-        await persistConversation({
-          contextsValue:
-            updatedContexts,
-
-          selectedContextIdValue:
-            contextId,
-        });
-      } catch (err) {
-        console.error(
-          "맥락 선택 실패:",
-          err
-        );
-
-        setError(
-          err.message ||
-            "맥락 선택에 실패했습니다."
+      if (
+        contextAnalysis?.id == null ||
+        operationLockRef.current ||
+        resolvingAmbiguityId != null
+      ) {
+        throw new Error(
+          "진행 중인 작업이 끝난 뒤 다시 시도해주세요."
         );
       }
-    };
 
-  // ========================================
-  // 맥락 직접 수정
-  //
-  // 여기서는 프론트 상태만 수정.
-  // 최종 확정할 때 CUSTOM으로 백엔드 전송.
-  // ========================================
-
-  const handleEditContext =
-    async (
-      context,
-      text
-    ) => {
-      try {
-        setError("");
-
-        if (!context) {
-          throw new Error(
-            "수정할 맥락이 없습니다."
-          );
-        }
-
-        const trimmedText =
-          String(
-            text ||
-            ""
-          ).trim();
-
-        if (!trimmedText) {
-          throw new Error(
-            "수정할 내용을 입력해주세요."
-          );
-        }
-
-        const updatedContexts =
-          contexts.map(
-            (item) =>
-              item.id ===
-              context.id
-                ? {
-                    ...item,
-
-                    editedText:
-                      trimmedText,
-
-                    finalText:
-                      trimmedText,
-
-                    wasEdited:
-                      true,
-                  }
-                : item
+      const ambiguityExists =
+        contextAnalysis.ambiguities
+          ?.some(
+            (ambiguity) =>
+              ambiguity.id ===
+              ambiguityId
           );
 
-        setContexts(
-          updatedContexts
+      if (!ambiguityExists) {
+        throw new Error(
+          "확정할 모호성 구간을 찾을 수 없습니다."
         );
-
-        await persistConversation({
-          contextsValue:
-            updatedContexts,
-
-          selectedContextIdValue:
-            selectedContextId,
-        });
-      } catch (err) {
-        console.error(
-          "맥락 수정 실패:",
-          err
-        );
-
-        setError(
-          err.message ||
-            "맥락 수정에 실패했습니다."
-        );
-
-        throw err;
       }
-    };
 
-  // ========================================
-  // 맥락 최종 확정
-  //
-  // 백엔드 실제 규칙:
-  //
-  // CANDIDATE
-  // - candidateId 필요
-  // - text 있으면 안 됨
-  //
-  // CUSTOM
-  // - candidateId 있으면 안 됨
-  // - text 필요
-  //
-  // DISMISSED
-  // - 둘 다 없어야 함
-  // ========================================
+      operationLockRef.current =
+        true;
+      setResolvingAmbiguityId(
+        ambiguityId
+      );
+      setError("");
 
-  const handleResolveContext =
-    async (
-      context,
-      finalText
-    ) => {
       try {
-        setError("");
+        const updatedAnalysis =
+          await resolveContextAmbiguity({
+            analysisId:
+              contextAnalysis.id,
+            ambiguityId,
+            type: resolution.type,
+            candidateId:
+              resolution.candidateId,
+            text: resolution.text,
+          });
 
-        if (!context) {
-          throw new Error(
-            "선택된 맥락이 없습니다."
-          );
-        }
-
-        if (
-          context.analysisId ==
-            null ||
-          context.ambiguityId ==
-            null
-        ) {
-          throw new Error(
-            "맥락 분석 정보를 찾을 수 없습니다."
-          );
-        }
-
-        const candidateId =
-          Number(
-            context.id
-          );
-
-        if (
-          !Number.isFinite(
-            candidateId
-          )
-        ) {
-          throw new Error(
-            "후보 ID가 올바르지 않습니다."
-          );
-        }
-
-        const customText =
-          String(
-            finalText ||
-            context.editedText ||
-            context.finalText ||
-            ""
-          ).trim();
-
-        let requestBody;
-
-        // ========================================
-        // 직접 수정한 경우 → CUSTOM
-        // ========================================
-
-        if (
-          context.wasEdited ===
-            true &&
-          customText
-        ) {
-          requestBody = {
-            type:
-              "CUSTOM",
-
-            text:
-              customText,
-          };
-        }
-
-        // ========================================
-        // 후보 그대로 확정 → CANDIDATE
-        // ========================================
-
-        else {
-          requestBody = {
-            type:
-              "CANDIDATE",
-
-            candidateId,
-          };
-        }
-
-        const data = await apiRequest(
-          `/api/context-analyses/${context.analysisId}/ambiguities/${context.ambiguityId}/resolution`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify(
-              requestBody
-            ),
-            defaultErrorMessage:
-              "맥락을 확정하지 못했습니다.",
-          }
+        setContextAnalysis(
+          updatedAnalysis
         );
-
-        const resolvedText =
-          context.wasEdited
-            ? customText
-            : (
-                context.interpretation ||
-                context.title ||
-                ""
-              );
-
-        const updatedContexts =
-          contexts.map(
-            (item) =>
-              item.id ===
-              context.id
-                ? {
-                    ...item,
-
-                    selected:
-                      true,
-
-                    resolved:
-                      true,
-
-                    finalText:
-                      resolvedText,
-                  }
-                : item
-          );
-
-        setContexts(
-          updatedContexts
-        );
-
-        setSelectedContextId(
-          context.id
+        setAnalysisId(
+          updatedAnalysis.id
         );
 
         await persistConversation({
-          contextsValue:
-            updatedContexts,
-
-          selectedContextIdValue:
-            context.id,
+          analysisIdValue:
+            updatedAnalysis.id,
+          contextAnalysisValue:
+            updatedAnalysis,
         });
 
-        return data;
+        return updatedAnalysis;
       } catch (err) {
         console.error(
           "맥락 확정 실패:",
           err
         );
-
         setError(
           err.message ||
-            "맥락 확정에 실패했습니다."
+            "맥락을 확정하지 못했습니다."
         );
-
         throw err;
+      } finally {
+        operationLockRef.current =
+          false;
+        setResolvingAmbiguityId(null);
       }
     };
 
@@ -1727,6 +1406,9 @@ function App() {
       conversation
     ) => {
       setConversationSession(null);
+      setViewedConversationRecord(
+        conversation
+      );
       setCurrentSpeakerParticipantId(
         null
       );
@@ -1736,12 +1418,13 @@ function App() {
           ""
       );
 
-      setContexts(
-        Array.isArray(
-          conversation.contexts
-        )
-          ? conversation.contexts
-          : []
+      const restoredAnalysis =
+        restoreStoredContextAnalysis(
+          conversation
+        );
+
+      setContextAnalysis(
+        restoredAnalysis
       );
 
       setTranscriptWords(
@@ -1752,11 +1435,7 @@ function App() {
           : []
       );
 
-      setSelectedContextId(
-        conversation
-          .selectedContextId ??
-          null
-      );
+      setResolvingAmbiguityId(null);
 
       recordedDurationRef.current =
         conversation.elapsedTime ??
@@ -1781,12 +1460,13 @@ function App() {
       );
 
       setAnalysisId(
-        conversation
-          .analysisId ??
+        restoredAnalysis?.id ??
+          conversation.analysisId ??
           null
       );
 
       dispatchRecording(
+        restoredAnalysis == null &&
         conversation.analysisId == null
           ? {
               type:
@@ -1835,13 +1515,11 @@ function App() {
 
       setTranscript("");
 
-      setContexts([]);
+      setContextAnalysis(null);
 
       setTranscriptWords([]);
 
-      setSelectedContextId(
-        null
-      );
+      setResolvingAmbiguityId(null);
     };
 
   // ========================================
@@ -1883,6 +1561,7 @@ function App() {
 
       setConversationId(null);
       setConversationSession(null);
+      setViewedConversationRecord(null);
       setCurrentSpeakerParticipantId(
         null
       );
@@ -1890,6 +1569,21 @@ function App() {
 
       setError("");
     };
+
+  const handleExitHistoryRecord = () => {
+    if (
+      operationLockRef.current ||
+      isProcessing ||
+      isContextResolving
+    ) {
+      return;
+    }
+
+    resetAnalysisResult();
+    setConversationId(null);
+    setViewedConversationRecord(null);
+    setError("");
+  };
 
   // ========================================
   // 대화 세션 생성
@@ -1938,6 +1632,7 @@ function App() {
         }
 
         resetAnalysisResult();
+        setViewedConversationRecord(null);
         setConversationSession({
           ...session,
           utterances:
@@ -2107,6 +1802,7 @@ function App() {
         resetAnalysisResult();
         setConversationId(null);
         setConversationSession(null);
+        setViewedConversationRecord(null);
         setCurrentSpeakerParticipantId(
           null
         );
@@ -2226,6 +1922,9 @@ function App() {
                 session={
                   conversationSession
                 }
+                historyRecord={
+                  viewedConversationRecord
+                }
                 currentSpeakerParticipantId={
                   currentSpeakerParticipantId
                 }
@@ -2239,7 +1938,8 @@ function App() {
                 isBusy={
                   isProcessing ||
                   isRecording ||
-                  isSessionPending
+                  isSessionPending ||
+                  isContextResolving
                 }
                 onCreateSession={
                   handleCreateConversationSession
@@ -2253,6 +1953,9 @@ function App() {
                 onCloseSession={
                   handleCloseConversationSession
                 }
+                onExitHistory={
+                  handleExitHistoryRecord
+                }
               />
 
               <div className="dashboard-grid">
@@ -2265,8 +1968,9 @@ function App() {
                   }
 
                   isProcessing={
-                    isProcessing ||
-                    isSessionPending
+                  isProcessing ||
+                  isSessionPending ||
+                  isContextResolving
                   }
 
                   canRecord={
@@ -2275,7 +1979,9 @@ function App() {
 
                   disabledReason={
                     conversationSession == null
-                      ? "대화 설정을 먼저 완료해주세요."
+                      ? viewedConversationRecord
+                        ? "저장된 발언을 보는 중입니다. 새 대화 설정으로 돌아가주세요."
+                        : "대화 설정을 먼저 완료해주세요."
                       : hasCurrentUtterance
                         ? "현재 발언을 확정한 뒤 다음 발언을 녹음할 수 있습니다."
                         : "이번 발언의 화자를 선택해주세요."
@@ -2321,12 +2027,19 @@ function App() {
                   }
 
                   isProcessing={
-                    isProcessing
+                    isProcessing ||
+                    isContextResolving
+                  }
+
+                  ambiguities={
+                    contextAnalysis
+                      ?.ambiguities || []
                   }
 
                   canAnalyze={
                     analysisStatus ===
-                    RecordingPhase.REVIEWING_TRANSCRIPT
+                      RecordingPhase.REVIEWING_TRANSCRIPT &&
+                    !isContextResolving
                   }
 
                   onCorrectWord={
@@ -2357,32 +2070,21 @@ function App() {
                 />
 
                 <ContextPanel
-                  key={`${
+                  key={
                     analysisId ??
                     "no-analysis"
-                  }-${
-                    selectedContextId ??
-                    "no-selection"
-                  }`}
-
-                  contexts={
-                    contexts
                   }
 
-                  selectedContextId={
-                    selectedContextId
+                  analysis={
+                    contextAnalysis
                   }
 
-                  onSelectContext={
-                    handleSelectContext
+                  resolvingAmbiguityId={
+                    resolvingAmbiguityId
                   }
 
-                  onEditContext={
-                    handleEditContext
-                  }
-
-                  onResolveContext={
-                    handleResolveContext
+                  onResolveAmbiguity={
+                    handleResolveAmbiguity
                   }
 
                   analysisCompleted={
@@ -2458,148 +2160,137 @@ function findSelfParticipant(
   return null;
 }
 
-// ========================================
-// AI 후보 정규화
-// ========================================
-
-function normalizeContextCandidates(
-  analysis
+function restoreStoredContextAnalysis(
+  conversation
 ) {
-  if (
-    !analysis ||
-    !Array.isArray(
-      analysis.ambiguities
-    )
-  ) {
-    return [];
+  if (conversation.contextAnalysis) {
+    return conversation.contextAnalysis;
   }
 
-  const result = [];
+  if (
+    conversation.analysisId == null ||
+    !Array.isArray(
+      conversation.contexts
+    ) ||
+    conversation.contexts.length === 0
+  ) {
+    return null;
+  }
 
-  analysis.ambiguities.forEach(
-    (ambiguity) => {
-      if (
-        !Array.isArray(
-          ambiguity.candidates
-        )
-      ) {
+  const grouped = new Map();
+
+  conversation.contexts.forEach(
+    (context) => {
+      const ambiguityId =
+        context.ambiguityId;
+
+      if (ambiguityId == null) {
         return;
       }
 
-      ambiguity.candidates
-        .forEach(
-          (candidate) => {
-            result.push({
-              ...candidate,
+      if (!grouped.has(ambiguityId)) {
+        grouped.set(ambiguityId, {
+          id: ambiguityId,
+          order: grouped.size + 1,
+          excerpt:
+            context.excerpt ||
+            "모호한 표현",
+          startWordId: null,
+          endWordId: null,
+          startWordOrder: null,
+          endWordOrder: null,
+          candidates: [],
+          selection: null,
+        });
+      }
 
-              id:
-                Number(
-                  candidate.id
-                ),
+      const ambiguity =
+        grouped.get(ambiguityId);
+      const interpretation =
+        context.interpretation ||
+        context.title ||
+        "맥락 후보";
 
-              analysisId:
-                Number(
-                  analysis.id
-                ),
+      ambiguity.candidates.push({
+        id: context.id,
+        rank:
+          context.rank ||
+          ambiguity.candidates.length + 1,
+        interpretation,
+        inferredIntent:
+          context.inferredIntent ||
+          context.title ||
+          interpretation,
+        rationale:
+          context.rationale ||
+          context.description ||
+          "",
+        intentSimilarityScore:
+          context.intentSimilarityScore ??
+          context.confidence ??
+          0,
+        selected:
+          context.selected === true,
+      });
 
-              ambiguityId:
-                Number(
-                  ambiguity.id
-                ),
-
-              excerpt:
-                ambiguity.excerpt,
-
-              title:
-                candidate
-                  .inferredIntent ||
-                candidate
-                  .interpretation ||
-                "맥락 후보",
-
-              description:
-                candidate
-                  .rationale ||
-                candidate
-                  .interpretation ||
-                "",
-
-              confidence:
-                Number(
-                  candidate
-                    .intentSimilarityScore ??
-                  0
-                ),
-
-              selected:
-                candidate
-                  .selected ===
-                true,
-
-              resolved:
-                Boolean(
-                  ambiguity
-                    ?.selection
-                ),
-
-              finalText:
-                ambiguity
-                  ?.selection
-                  ?.finalText ||
-                "",
-
-              editedText:
-                "",
-
-              wasEdited:
-                false,
-            });
-          }
-        );
+      if (context.resolved) {
+        ambiguity.selection = {
+          type: context.wasEdited
+            ? "CUSTOM"
+            : "CANDIDATE",
+          candidateId:
+            context.wasEdited
+              ? null
+              : context.id,
+          originalCandidateText:
+            interpretation,
+          finalText:
+            context.finalText ||
+            interpretation,
+          edited:
+            context.wasEdited === true,
+          selectedAt:
+            conversation.updatedAt ||
+            null,
+          updatedAt:
+            conversation.updatedAt ||
+            null,
+        };
+      }
     }
   );
 
-  return result;
-}
-
-function areAllAmbiguitiesResolved(
-  contexts
-) {
-  if (!Array.isArray(contexts)) {
-    return false;
-  }
-
-  if (contexts.length === 0) {
-    return true;
-  }
-
-  const ambiguityIds = [
-    ...new Set(
-      contexts.map(
-        (context) =>
-          context.ambiguityId
-      )
-    ),
+  const ambiguities = [
+    ...grouped.values(),
   ];
 
-  if (
-    ambiguityIds.some(
-      (ambiguityId) =>
-        ambiguityId == null
-    )
-  ) {
-    return false;
-  }
-
-  return ambiguityIds.every(
-    (ambiguityId) =>
-      contexts.some(
-        (context) =>
-          context.ambiguityId ===
-            ambiguityId &&
-          context.resolved === true
-      )
-  );
+  return {
+    id: conversation.analysisId,
+    conversationId:
+      conversation.conversationId,
+    utteranceId:
+      conversation.utteranceId,
+    transcriptionId:
+      conversation.transcriptionId,
+    ambiguityCount:
+      ambiguities.length,
+    needsClarification:
+      ambiguities.length > 0,
+    stale: false,
+    fullyResolved:
+      ambiguities.length > 0 &&
+      ambiguities.every(
+        (ambiguity) =>
+          ambiguity.selection != null
+      ),
+    usableResolution:
+      ambiguities.length > 0 &&
+      ambiguities.every(
+        (ambiguity) =>
+          ambiguity.selection != null
+      ),
+    ambiguities,
+  };
 }
 
 export default App;
