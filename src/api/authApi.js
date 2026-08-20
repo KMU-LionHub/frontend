@@ -1,16 +1,93 @@
-﻿const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+import { apiRequest } from "./apiClient";
+import {
+  clearAuthSession,
+  getAccessToken,
+  getStoredUser,
+  storeAuthSession,
+} from "./authStorage";
 
-// ========================================
-// 오류 메시지 처리
-// ========================================
+export async function login(
+  email,
+  password
+) {
+  const data = await apiRequest(
+    "/api/auth/login",
+    {
+      auth: false,
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+      defaultErrorMessage:
+        "로그인에 실패했습니다.",
+      formatError: getAuthErrorMessage,
+    }
+  );
 
-function getErrorMessage(data, defaultMessage) {
+  const accessToken =
+    data.token?.accessToken;
+
+  if (!accessToken || !data.user) {
+    throw new Error(
+      "로그인 응답에 인증 정보가 없습니다."
+    );
+  }
+
+  storeAuthSession({
+    accessToken,
+    user: data.user,
+  });
+
+  return data;
+}
+
+export async function signup(
+  email,
+  password,
+  nickname
+) {
+  return apiRequest(
+    "/api/auth/signup",
+    {
+      auth: false,
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        password,
+        nickname,
+      }),
+      defaultErrorMessage:
+        "회원가입에 실패했습니다.",
+      formatError: getAuthErrorMessage,
+    }
+  );
+}
+
+export {
+  getAccessToken,
+  getStoredUser,
+};
+
+export const logout = clearAuthSession;
+
+function getAuthErrorMessage(
+  data,
+  defaultMessage
+) {
   if (
-    !Array.isArray(data.errors) ||
+    !Array.isArray(data?.errors) ||
     data.errors.length === 0
   ) {
-    return data.message || defaultMessage;
+    return data?.message || defaultMessage;
   }
 
   const fieldErrors = {};
@@ -21,7 +98,8 @@ function getErrorMessage(data, defaultMessage) {
       return;
     }
 
-    const colonIndex = error.indexOf(":");
+    const colonIndex =
+      error.indexOf(":");
 
     if (colonIndex === -1) {
       generalErrors.push(error);
@@ -31,7 +109,6 @@ function getErrorMessage(data, defaultMessage) {
     const field = error
       .slice(0, colonIndex)
       .trim();
-
     const message = error
       .slice(colonIndex + 1)
       .trim();
@@ -77,147 +154,11 @@ function getErrorMessage(data, defaultMessage) {
     }
   );
 
-  generalErrors.forEach((error) => {
-    messages.push(error);
-  });
+  messages.push(...generalErrors);
 
-  if (messages.length > 0) {
-    return messages.join("\n");
-  }
-
-  return data.message || defaultMessage;
-}
-
-// ========================================
-// 로그인
-// ========================================
-
-export async function login(email, password) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/auth/login`,
-    {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        email,
-        password,
-      }),
-    }
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      getErrorMessage(
-        data,
-        "로그인에 실패했습니다."
-      )
-    );
-  }
-
-  // JWT 저장
-  if (data.token?.accessToken) {
-    localStorage.setItem(
-      "accessToken",
-      data.token.accessToken
-    );
-  }
-
-  // ★ 사용자 정보도 같이 저장
-  if (data.user) {
-    localStorage.setItem(
-      "user",
-      JSON.stringify(data.user)
-    );
-  }
-
-  return data;
-}
-
-// ========================================
-// 회원가입
-// ========================================
-
-export async function signup(
-  email,
-  password,
-  nickname
-) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/auth/signup`,
-    {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        email,
-        password,
-        nickname,
-      }),
-    }
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      getErrorMessage(
-        data,
-        "회원가입에 실패했습니다."
-      )
-    );
-  }
-
-  return data;
-}
-
-// ========================================
-// JWT 가져오기
-// ========================================
-
-export function getAccessToken() {
-  return localStorage.getItem(
-    "accessToken"
-  );
-}
-
-// ========================================
-// 저장된 사용자 가져오기
-// ========================================
-
-export function getStoredUser() {
-  const user =
-    localStorage.getItem("user");
-
-  if (!user) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(user);
-  } catch {
-    return null;
-  }
-}
-
-// ========================================
-// 로그아웃
-// ========================================
-
-export function logout() {
-  localStorage.removeItem(
-    "accessToken"
-  );
-
-  localStorage.removeItem(
-    "user"
+  return (
+    messages.join("\n") ||
+    data?.message ||
+    defaultMessage
   );
 }

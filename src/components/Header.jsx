@@ -2,6 +2,7 @@ import { LogOut, User } from "lucide-react";
 
 function Header({
   isRecording = false,
+  isProcessing = false,
   nickname,
   email,
   onLogout,
@@ -26,12 +27,15 @@ function Header({
           정보 손실 없는 대화 도우미
         </h1>
 
-        {isRecording && (
+        {(isRecording ||
+          isProcessing) && (
           <div className="recording-status">
 
             <span className="recording-dot" />
 
-            녹음 분석 중
+            {isRecording
+              ? "녹음 중"
+              : "음성 처리 중"}
 
           </div>
         )}

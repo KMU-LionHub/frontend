@@ -5,6 +5,7 @@ import {
 
 function RecordingPanel({
   isRecording,
+  isProcessing = false,
   elapsedTime,
   transcript,
   onRecordToggle,
@@ -14,11 +15,11 @@ function RecordingPanel({
       {/* 상단 제목 */}
       <div className="panel-heading-row">
         <div>
-          <h2>실시간 자막 & 오디오 컨트롤</h2>
+          <h2>음성 녹음</h2>
 
           <p>
-            음성이 인지되면 실시간으로 자막 텍스트와
-            파형이 갱신됩니다.
+            녹음을 마치면 음성을 텍스트로 변환하고
+            발언의 맥락을 분석합니다.
           </p>
         </div>
 
@@ -33,6 +34,8 @@ function RecordingPanel({
 
           {isRecording
             ? "AI가 듣고 있어요"
+            : isProcessing
+              ? "음성 처리 중"
             : "녹음 대기"}
         </div>
       </div>
@@ -47,9 +50,12 @@ function RecordingPanel({
               : "record-circle"
           }
           onClick={onRecordToggle}
+          disabled={isProcessing}
           aria-label={
             isRecording
               ? "녹음 종료"
+              : isProcessing
+                ? "녹음 처리 중"
               : "녹음 시작"
           }
         >
@@ -81,8 +87,10 @@ function RecordingPanel({
 
           <p>
             {isRecording
-              ? "다시 마이크를 누르면 녹음이 종료되고 AI 요약 및 분석이 진행됩니다."
-              : "마이크 버튼을 눌러 대화를 녹음해주세요."}
+              ? "다시 마이크를 누르면 녹음을 종료합니다."
+              : isProcessing
+                ? "음성을 처리하고 있습니다. 잠시만 기다려주세요."
+                : "마이크 버튼을 눌러 대화를 녹음해주세요."}
           </p>
         </div>
       </div>
@@ -92,14 +100,17 @@ function RecordingPanel({
         {transcript ? (
           transcript
         ) : isRecording ? (
-          "음성을 듣고 있습니다..."
+          "녹음 중입니다. 종료하면 자막이 표시됩니다."
+        ) : isProcessing ? (
+          "녹음된 음성을 텍스트로 변환하고 있습니다."
         ) : (
-          "녹음을 시작하면 이곳에 실시간 자막이 표시됩니다."
+          "녹음을 완료하면 이곳에 변환된 자막이 표시됩니다."
         )}
       </div>
 
       {/* 오디오 파형 */}
       <div
+        aria-hidden="true"
         className={
           isRecording
             ? "waveform active"
