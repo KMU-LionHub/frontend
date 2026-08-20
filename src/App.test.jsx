@@ -58,6 +58,7 @@ describe("App workflows", () => {
     cleanup();
     window.localStorage.clear();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
 
     if (originalMediaDevices) {
@@ -178,6 +179,9 @@ describe("App workflows", () => {
           },
         ],
       });
+    let transcriptionCount = 0;
+    let utteranceCount = 0;
+    let analysisCount = 0;
     const fetchMock = vi.fn(
       async (input) => {
         const url = String(input);
@@ -249,6 +253,36 @@ describe("App workflows", () => {
             "/api/stt/transcriptions"
           )
         ) {
+          transcriptionCount += 1;
+
+          if (transcriptionCount > 1) {
+            return jsonResponse(201, {
+              id: 13,
+              originalText:
+                "두 번째 발언",
+              currentText:
+                "두 번째 발언",
+              words: [
+                {
+                  id: 301,
+                  order: 0,
+                  originalText: "두 번째",
+                  correctedText: null,
+                  currentText: "두 번째",
+                  confidence: 0.96,
+                },
+                {
+                  id: 302,
+                  order: 1,
+                  originalText: "발언",
+                  correctedText: null,
+                  currentText: "발언",
+                  confidence: 0.95,
+                },
+              ],
+            });
+          }
+
           return jsonResponse(201, {
             id: 11,
             originalText:
@@ -285,19 +319,57 @@ describe("App workflows", () => {
         ) {
           return jsonResponse(201, {
             id: 22,
+            title: "테스트 대화",
+            context:
+              "여행 일정을 정하는 대화",
+            status: "ACTIVE",
             participants: [
               {
                 id: 33,
                 type: "SELF",
                 userId: 1,
+                displayName: "사용자",
+              },
+              {
+                id: 34,
+                type: "OTHER",
+                userId: null,
+                displayName: "민지",
               },
             ],
+            utterances: [],
           });
         }
 
-        if (url.includes("/utterances")) {
-          return jsonResponse(201, {
+        if (url.endsWith("/confirm")) {
+          return jsonResponse(200, {
+            id:
+              utteranceCount > 1
+                ? 45
+                : 44,
+            order:
+              utteranceCount > 1
+                ? 1
+                : 0,
+          });
+        }
+
+        if (url.endsWith("/transcription")) {
+          return jsonResponse(200, {
             id: 44,
+            order: 0,
+          });
+        }
+
+        if (url.endsWith("/utterances")) {
+          utteranceCount += 1;
+          return jsonResponse(201, {
+            id:
+              utteranceCount === 1
+                ? 44
+                : 45,
+            order:
+              utteranceCount - 1,
           });
         }
 
@@ -306,9 +378,17 @@ describe("App workflows", () => {
             "/api/context-analyses"
           )
         ) {
+          analysisCount += 1;
           return jsonResponse(201, {
-            id: 55,
+            id: 54 + analysisCount,
             ambiguities: [],
+          });
+        }
+
+        if (url.endsWith("/close")) {
+          return jsonResponse(200, {
+            id: 22,
+            status: "CLOSED",
           });
         }
 
@@ -335,6 +415,67 @@ describe("App workflows", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
+
+    fireEvent.change(
+      screen.getByLabelText(
+        /대화 제목/
+      ),
+      {
+        target: {
+          value: "테스트 대화",
+        },
+      }
+    );
+    fireEvent.change(
+      screen.getByLabelText(
+        /대화 배경/
+      ),
+      {
+        target: {
+          value:
+            "여행 일정을 정하는 대화",
+        },
+      }
+    );
+    fireEvent.change(
+      screen.getByLabelText(
+        /상대 참여자/
+      ),
+      {
+        target: {
+          value: "민지",
+        },
+      }
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "추가",
+      })
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "이 설정으로 대화 시작",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: "테스트 대화",
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: "녹음 시작",
+        })
+      ).toBeEnabled();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "민지",
+      })
+    );
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -385,12 +526,35 @@ describe("App workflows", () => {
     expect(fetchMock).toHaveBeenCalledTimes(
       3
     );
+
+    const utteranceRequest =
+      fetchMock.mock.calls.find(
+        ([url]) =>
+          String(url).endsWith(
+            "/api/conversations/22/utterances"
+          )
+      );
+
+    expect(
+      JSON.parse(
+        utteranceRequest[1].body
+      )
+    ).toEqual({
+      transcriptionId: 11,
+      speakerParticipantId: 34,
+    });
     expect(
       saveConversation
     ).toHaveBeenCalledWith(
       expect.objectContaining({
         transcriptionId: 11,
         analysisId: null,
+        conversationTitle:
+          "테스트 대화",
+        speaker: expect.objectContaining({
+          id: 34,
+          displayName: "민지",
+        }),
       })
     );
 
@@ -517,6 +681,152 @@ describe("App workflows", () => {
           )
       )
     ).toHaveLength(1);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "AI 분석 시작",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "발언 확정 후 다음",
+        })
+      ).toBeEnabled();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "발언 확정 후 다음",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "녹음 시작",
+        })
+      ).toBeEnabled();
+    });
+
+    expect(
+      fetchMock.mock.calls.some(
+        ([url]) =>
+          String(url).endsWith(
+            "/api/conversations/22/utterances/44/confirm"
+          )
+      )
+    ).toBe(true);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /사용자/,
+      })
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "녹음 시작",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "녹음 종료",
+        })
+      ).toBeEnabled();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "녹음 종료",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "두 번째 단어 수정",
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("발언 2개")
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url]) =>
+          String(url).endsWith(
+            "/api/conversations"
+          )
+      )
+    ).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url]) =>
+          String(url).endsWith(
+            "/api/conversations/22/utterances"
+          )
+      )
+    ).toHaveLength(2);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "AI 분석 시작",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "발언 확정 후 다음",
+        })
+      ).toBeEnabled();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "발언 확정 후 다음",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: "대화 종료",
+        })
+      ).toBeEnabled();
+    });
+
+    vi.spyOn(
+      window,
+      "confirm"
+    ).mockReturnValue(true);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "대화 종료",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          name: "새 대화 설정",
+        })
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      fetchMock.mock.calls.some(
+        ([url]) =>
+          String(url).endsWith(
+            "/api/conversations/22/close"
+          )
+      )
+    ).toBe(true);
   });
 
   it("restores an unanalyzed history item to transcript review", async () => {

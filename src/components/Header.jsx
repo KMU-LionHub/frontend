@@ -92,6 +92,8 @@ function getWorkflowLabel(status) {
       return "음성 처리 중";
     case RecordingPhase.UPDATING_TRANSCRIPT:
       return "단어 수정 중";
+    case RecordingPhase.CONFIRMING_UTTERANCE:
+      return "발언 확정 중";
     case RecordingPhase.ANALYZING:
       return "AI 분석 중";
     default:

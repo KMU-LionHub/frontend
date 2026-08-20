@@ -56,4 +56,29 @@ describe("RecordingPanel", () => {
       })
     ).toBeEnabled();
   });
+
+  it("requires an active conversation before recording", () => {
+    render(
+      <RecordingPanel
+        isRecording={false}
+        isProcessing={false}
+        canRecord={false}
+        disabledReason="대화 설정을 먼저 완료해주세요."
+        elapsedTime={0}
+        transcript=""
+        onRecordToggle={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "녹음 준비 필요",
+      })
+    ).toBeDisabled();
+    expect(
+      screen.getAllByText(
+        "대화 설정을 먼저 완료해주세요."
+      ).length
+    ).toBeGreaterThan(0);
+  });
 });

@@ -355,6 +355,13 @@ function HistoryPage({
                   </p>
 
                   <div className="history-meta">
+                    {conversation.speaker
+                      ?.displayName && (
+                      <span>
+                        화자 {conversation.speaker.displayName}
+                      </span>
+                    )}
+
                     <span>
                       맥락 후보{" "}
                       {
@@ -428,6 +435,10 @@ function HistoryPage({
 function getConversationTitle(
   conversation
 ) {
+  if (conversation.conversationTitle) {
+    return conversation.conversationTitle;
+  }
+
   if (
     conversation.contexts?.[0]
       ?.title

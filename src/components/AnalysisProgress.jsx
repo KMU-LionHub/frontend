@@ -113,6 +113,9 @@ function getStatusText(status) {
     case "UPDATING_TRANSCRIPT":
       return "단어 수정 중";
 
+    case "CONFIRMING_UTTERANCE":
+      return "발언 확정 중";
+
     case "ANALYZING":
       return "AI 분석 중";
 
@@ -146,6 +149,9 @@ function getDetailedStatus(status) {
 
     case "UPDATING_TRANSCRIPT":
       return "수정한 단어를 전사에 반영하고 있습니다.";
+
+    case "CONFIRMING_UTTERANCE":
+      return "현재 발언을 확정하고 다음 발언을 준비하고 있습니다.";
 
     case "ANALYZING":
       return "발언의 의미와 맥락 후보를 분석하고 있습니다.";
