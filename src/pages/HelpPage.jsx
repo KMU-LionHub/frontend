@@ -5,39 +5,46 @@ import {
   History,
   ShieldCheck,
   CircleHelp,
+  Users,
 } from "lucide-react";
 
 function HelpPage() {
   const guides = [
     {
-      icon: Mic,
-      title: "1. 대화 녹음",
+      icon: Users,
+      title: "1. 대화 설정",
       description:
-        "녹음 화면의 마이크 버튼을 눌러 대화를 녹음합니다. 다시 누르면 녹음이 종료됩니다.",
+        "대화 제목과 배경을 입력하고 상대 참여자를 추가해 하나의 대화 세션을 시작합니다.",
+    },
+    {
+      icon: Mic,
+      title: "2. 화자 선택 및 녹음",
+      description:
+        "이번에 말할 화자를 선택하고 마이크 버튼을 눌러 발언을 녹음합니다. 다시 누르면 녹음이 종료됩니다.",
     },
     {
       icon: MessageSquareText,
-      title: "2. 전사 검토",
+      title: "3. 전사 검토",
       description:
         "녹음이 종료되면 STT 결과를 확인합니다. 잘못 인식된 단어를 선택해 수정하거나 전체 발언을 다시 녹음할 수 있습니다.",
     },
     {
       icon: BrainCircuit,
-      title: "3. AI 분석",
+      title: "4. AI 분석",
       description:
         "전사를 검토한 뒤 AI 분석 시작 버튼을 누르면 발언의 가능한 맥락 후보를 확인할 수 있습니다.",
     },
     {
       icon: ShieldCheck,
-      title: "4. 실제 맥락 선택",
+      title: "5. 맥락 선택과 발언 확정",
       description:
-        "AI가 제시한 후보 중 실제 발언 의도와 가장 가까운 맥락을 선택합니다.",
+        "실제 의도와 가까운 맥락을 확정한 뒤 현재 발언을 완료하면 다음 화자의 발언을 이어서 녹음할 수 있습니다.",
     },
     {
       icon: History,
-      title: "5. 대화 기록",
+      title: "6. 대화 종료와 기록",
       description:
-        "저장된 분석 결과는 왼쪽의 대화 기록 메뉴에서 다시 확인할 수 있습니다.",
+        "마지막 발언을 확정하고 대화를 종료합니다. 저장된 결과는 대화 기록 메뉴에서 다시 확인할 수 있습니다.",
     },
   ];
 

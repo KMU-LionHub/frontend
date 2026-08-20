@@ -6,6 +6,8 @@ import {
 function RecordingPanel({
   isRecording,
   isProcessing = false,
+  canRecord = true,
+  disabledReason = "",
   elapsedTime,
   transcript,
   onRecordToggle,
@@ -36,6 +38,8 @@ function RecordingPanel({
             ? "AI가 듣고 있어요"
             : isProcessing
               ? "음성 처리 중"
+              : !canRecord
+                ? "녹음 준비 필요"
             : "녹음 대기"}
         </div>
       </div>
@@ -47,15 +51,25 @@ function RecordingPanel({
           className={
             isRecording
               ? "record-circle active"
-              : "record-circle"
+              : isProcessing
+                ? "record-circle processing"
+                : "record-circle"
           }
           onClick={onRecordToggle}
-          disabled={isProcessing}
+          disabled={
+            isProcessing ||
+            (
+              !isRecording &&
+              !canRecord
+            )
+          }
           aria-label={
             isRecording
               ? "녹음 종료"
               : isProcessing
                 ? "녹음 처리 중"
+                : !canRecord
+                  ? "녹음 준비 필요"
               : "녹음 시작"
           }
         >
@@ -90,6 +104,8 @@ function RecordingPanel({
               ? "다시 마이크를 누르면 녹음을 종료합니다."
               : isProcessing
                 ? "음성을 처리하고 있습니다. 잠시만 기다려주세요."
+                : !canRecord
+                  ? disabledReason
                 : "마이크 버튼을 눌러 대화를 녹음해주세요."}
           </p>
         </div>
@@ -103,6 +119,8 @@ function RecordingPanel({
           "녹음 중입니다. 종료하면 자막이 표시됩니다."
         ) : isProcessing ? (
           "녹음된 음성을 텍스트로 변환하고 있습니다."
+        ) : !canRecord ? (
+          disabledReason
         ) : (
           "녹음을 완료하면 이곳에 변환된 자막이 표시됩니다."
         )}

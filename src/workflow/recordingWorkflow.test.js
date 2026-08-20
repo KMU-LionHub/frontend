@@ -105,6 +105,11 @@ describe("recordingWorkflowReducer", () => {
     ).toBe(true);
     expect(
       isProcessingPhase(
+        RecordingPhase.CONFIRMING_UTTERANCE
+      )
+    ).toBe(true);
+    expect(
+      isProcessingPhase(
         RecordingPhase.RECORDING
       )
     ).toBe(false);

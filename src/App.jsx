@@ -12,6 +12,7 @@ import RecordingPanel from "./components/RecordingPanel";
 import AnalysisProgress from "./components/AnalysisProgress";
 import TranscriptPanel from "./components/TranscriptPanel";
 import ContextPanel from "./components/ContextPanel";
+import ConversationSessionPanel from "./components/ConversationSessionPanel";
 
 import HistoryPage from "./pages/HistoryPage";
 import HelpPage from "./pages/HelpPage";
@@ -34,6 +35,10 @@ import {
   rerecordTranscription,
 } from "./api/transcriptionApi";
 import {
+  addConversationUtterance,
+  closeConversation,
+  confirmConversationUtterance,
+  createConversation,
   replaceUtteranceTranscription,
 } from "./api/conversationApi";
 
@@ -84,6 +89,21 @@ function App() {
     activeMenu,
     setActiveMenu,
   ] = useState("record");
+
+  const [
+    conversationSession,
+    setConversationSession,
+  ] = useState(null);
+
+  const [
+    currentSpeakerParticipantId,
+    setCurrentSpeakerParticipantId,
+  ] = useState(null);
+
+  const [
+    isSessionPending,
+    setIsSessionPending,
+  ] = useState(false);
 
   // ========================================
   // 녹음
@@ -216,6 +236,23 @@ function App() {
     setError,
   ] = useState("");
 
+  const hasCurrentUtterance =
+    utteranceId != null;
+
+  const canFinalizeCurrentUtterance =
+    hasCurrentUtterance &&
+    analysisStatus ===
+      RecordingPhase.COMPLETED &&
+    areAllAmbiguitiesResolved(
+      contexts
+    );
+
+  const canStartNewUtterance =
+    conversationSession?.id != null &&
+    currentSpeakerParticipantId != null &&
+    !hasCurrentUtterance &&
+    !isSessionPending;
+
   // ========================================
   // 인증 만료
   // ========================================
@@ -256,6 +293,11 @@ function App() {
         setIsLoggedIn(false);
         setAuthPage("login");
         setActiveMenu("record");
+        setConversationSession(null);
+        setCurrentSpeakerParticipantId(
+          null
+        );
+        setIsSessionPending(false);
         setTranscriptionId(null);
         setConversationId(null);
         setUtteranceId(null);
@@ -393,6 +435,18 @@ function App() {
       ) {
         setError(
           "재발언할 전사 정보를 찾을 수 없습니다."
+        );
+        return;
+      }
+
+      if (
+        mode === RecordingMode.NEW &&
+        !canStartNewUtterance
+      ) {
+        setError(
+          hasCurrentUtterance
+            ? "현재 발언을 확정한 뒤 다음 발언을 녹음해주세요."
+            : "대화를 시작하고 이번 발언의 화자를 선택해주세요."
         );
         return;
       }
@@ -754,12 +808,13 @@ function App() {
         });
 
         if (isReplacement) {
-          await replaceUtteranceTranscription({
-            conversationId,
-            utteranceId,
-            transcriptionId:
-              newTranscriptionId,
-          });
+          const updatedUtterance =
+            await replaceUtteranceTranscription({
+              conversationId,
+              utteranceId,
+              transcriptionId:
+                newTranscriptionId,
+            });
 
           setTranscriptionId(
             newTranscriptionId
@@ -769,6 +824,31 @@ function App() {
           setAnalysisId(null);
           setContexts([]);
           setSelectedContextId(null);
+          setConversationSession(
+            (current) => {
+              if (!current) {
+                return current;
+              }
+
+              return {
+                ...current,
+                utterances:
+                  (
+                    Array.isArray(
+                      current.utterances
+                    )
+                      ? current.utterances
+                      : []
+                  ).map(
+                    (item) =>
+                      item.id ===
+                      updatedUtterance.id
+                        ? updatedUtterance
+                        : item
+                  ),
+              };
+            }
+          );
 
           await persistConversation({
             transcriptionIdValue:
@@ -798,17 +878,16 @@ function App() {
         setTranscript(text);
         setTranscriptWords(words);
 
-        const conversation =
-          await createConversation();
-
         const newConversationId =
-          conversation.id;
+          conversationSession?.id;
 
         if (
-          newConversationId == null
+          newConversationId == null ||
+          currentSpeakerParticipantId ==
+            null
         ) {
           throw new Error(
-            "대화 ID를 받지 못했습니다."
+            "대화 또는 화자 정보를 찾을 수 없습니다."
           );
         }
 
@@ -816,22 +895,8 @@ function App() {
           newConversationId
         );
 
-        const selfParticipant =
-          findSelfParticipant(
-            conversation,
-            currentUser
-          );
-
-        if (
-          !selfParticipant?.id
-        ) {
-          throw new Error(
-            "현재 사용자의 참여자 정보를 찾지 못했습니다."
-          );
-        }
-
         const utterance =
-          await createUtterance({
+          await addConversationUtterance({
             conversationId:
               newConversationId,
 
@@ -839,7 +904,7 @@ function App() {
               newTranscriptionId,
 
             speakerParticipantId:
-              selfParticipant.id,
+              currentSpeakerParticipantId,
           });
 
         const newUtteranceId =
@@ -855,6 +920,35 @@ function App() {
 
         setUtteranceId(
           newUtteranceId
+        );
+        setConversationSession(
+          (current) => {
+            if (
+              current?.id !==
+              newConversationId
+            ) {
+              return current;
+            }
+
+            const currentUtterances =
+              Array.isArray(
+                current.utterances
+              )
+                ? current.utterances
+                : [];
+
+            return {
+              ...current,
+              utterances: [
+                ...currentUtterances.filter(
+                  (item) =>
+                    item.id !==
+                    utterance.id
+                ),
+                utterance,
+              ],
+            };
+          }
         );
 
         await persistConversation({
@@ -915,59 +1009,6 @@ function App() {
             "녹음 처리 중 오류가 발생했습니다."
         );
       }
-    };
-
-  // ========================================
-  // 대화 생성
-  // ========================================
-
-  const createConversation =
-    async () => {
-      return apiRequest(
-        "/api/conversations",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            title: "AI 맥락 분석",
-            context: null,
-            participants: [],
-          }),
-          defaultErrorMessage:
-            "대화를 생성하지 못했습니다.",
-        }
-      );
-    };
-
-  // ========================================
-  // 발언 생성
-  // ========================================
-
-  const createUtterance =
-    async ({
-      conversationId,
-      transcriptionId,
-      speakerParticipantId,
-    }) => {
-      return apiRequest(
-        `/api/conversations/${conversationId}/utterances`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            transcriptionId,
-            speakerParticipantId,
-          }),
-          defaultErrorMessage:
-            "발언을 대화에 추가하지 못했습니다.",
-        }
-      );
     };
 
   // ========================================
@@ -1136,18 +1177,38 @@ function App() {
         elapsedTime,
     } = {}) => {
       if (
-        conversationIdValue == null
+        conversationIdValue == null ||
+        utteranceIdValue == null
       ) {
         return;
       }
 
+      const speaker =
+        conversationSession
+          ?.participants
+          ?.find(
+            (participant) =>
+              participant.id ===
+              currentSpeakerParticipantId
+          ) || null;
+
       try {
         await saveConversation({
           id:
-            `conversation-${conversationIdValue}`,
+            `conversation-${conversationIdValue}-utterance-${utteranceIdValue}`,
 
           conversationId:
             conversationIdValue,
+
+          conversationTitle:
+            conversationSession?.title ||
+            null,
+
+          conversationContext:
+            conversationSession?.context ||
+            null,
+
+          speaker,
 
           transcriptionId:
             transcriptionIdValue,
@@ -1665,6 +1726,11 @@ function App() {
     (
       conversation
     ) => {
+      setConversationSession(null);
+      setCurrentSpeakerParticipantId(
+        null
+      );
+
       setTranscript(
         conversation.transcript ||
           ""
@@ -1755,10 +1821,6 @@ function App() {
         null
       );
 
-      setConversationId(
-        null
-      );
-
       setUtteranceId(
         null
       );
@@ -1819,7 +1881,250 @@ function App() {
 
       resetAnalysisResult();
 
+      setConversationId(null);
+      setConversationSession(null);
+      setCurrentSpeakerParticipantId(
+        null
+      );
+      setIsSessionPending(false);
+
       setError("");
+    };
+
+  // ========================================
+  // 대화 세션 생성
+  // ========================================
+
+  const handleCreateConversationSession =
+    async ({
+      title,
+      context,
+      participantNames,
+    }) => {
+      if (
+        operationLockRef.current ||
+        isSessionPending
+      ) {
+        throw new Error(
+          "진행 중인 작업이 끝난 뒤 다시 시도해주세요."
+        );
+      }
+
+      operationLockRef.current =
+        true;
+      setIsSessionPending(true);
+      setError("");
+
+      try {
+        const session =
+          await createConversation({
+            title,
+            context,
+            participantNames,
+          });
+        const selfParticipant =
+          findSelfParticipant(
+            session,
+            currentUser
+          );
+
+        if (
+          session.id == null ||
+          selfParticipant?.id == null
+        ) {
+          throw new Error(
+            "생성된 대화의 참여자 정보를 확인할 수 없습니다."
+          );
+        }
+
+        resetAnalysisResult();
+        setConversationSession({
+          ...session,
+          utterances:
+            Array.isArray(
+              session.utterances
+            )
+              ? session.utterances
+              : [],
+        });
+        setConversationId(session.id);
+        setCurrentSpeakerParticipantId(
+          selfParticipant.id
+        );
+
+        return session;
+      } catch (err) {
+        console.error(
+          "대화 생성 실패:",
+          err
+        );
+        setError(
+          err.message ||
+            "대화를 생성하지 못했습니다."
+        );
+        throw err;
+      } finally {
+        operationLockRef.current =
+          false;
+        setIsSessionPending(false);
+      }
+    };
+
+  const handleSelectSpeaker = (
+    participantId
+  ) => {
+    if (
+      hasCurrentUtterance ||
+      isProcessing ||
+      isSessionPending
+    ) {
+      return;
+    }
+
+    const exists =
+      conversationSession?.participants
+        ?.some(
+          (participant) =>
+            participant.id ===
+            participantId
+        );
+
+    if (exists) {
+      setCurrentSpeakerParticipantId(
+        participantId
+      );
+    }
+  };
+
+  // ========================================
+  // 현재 발언 확정 및 다음 발언 준비
+  // ========================================
+
+  const handleFinalizeCurrentUtterance =
+    async () => {
+      if (
+        !canFinalizeCurrentUtterance ||
+        conversationId == null ||
+        utteranceId == null ||
+        operationLockRef.current
+      ) {
+        return;
+      }
+
+      operationLockRef.current =
+        true;
+      setError("");
+
+      dispatchRecording({
+        type:
+          RecordingAction.START_CONFIRMING_UTTERANCE,
+      });
+
+      try {
+        const confirmedUtterance =
+          await confirmConversationUtterance({
+            conversationId,
+            utteranceId,
+          });
+
+        setConversationSession(
+          (current) => {
+            if (!current) {
+              return current;
+            }
+
+            return {
+              ...current,
+              utterances:
+                (
+                  Array.isArray(
+                    current.utterances
+                  )
+                    ? current.utterances
+                    : []
+                ).map(
+                  (item) =>
+                    item.id ===
+                    confirmedUtterance.id
+                      ? confirmedUtterance
+                      : item
+                ),
+            };
+          }
+        );
+
+        resetAnalysisResult();
+        recordingStartedAtRef.current =
+          null;
+        recordedDurationRef.current =
+          0;
+        previousDurationRef.current =
+          0;
+      } catch (err) {
+        console.error(
+          "발언 확정 실패:",
+          err
+        );
+
+        dispatchRecording({
+          type:
+            RecordingAction.RESTORE_COMPLETED,
+          elapsedTime,
+        });
+        setError(
+          err.message ||
+            "현재 발언을 확정하지 못했습니다."
+        );
+      } finally {
+        operationLockRef.current =
+          false;
+      }
+    };
+
+  // ========================================
+  // 대화 종료
+  // ========================================
+
+  const handleCloseConversationSession =
+    async () => {
+      if (
+        !conversationSession?.id ||
+        hasCurrentUtterance ||
+        operationLockRef.current
+      ) {
+        return;
+      }
+
+      operationLockRef.current =
+        true;
+      setIsSessionPending(true);
+      setError("");
+
+      try {
+        await closeConversation(
+          conversationSession.id
+        );
+        resetAnalysisResult();
+        setConversationId(null);
+        setConversationSession(null);
+        setCurrentSpeakerParticipantId(
+          null
+        );
+      } catch (err) {
+        console.error(
+          "대화 종료 실패:",
+          err
+        );
+        setError(
+          err.message ||
+            "대화를 종료하지 못했습니다."
+        );
+        throw err;
+      } finally {
+        operationLockRef.current =
+          false;
+        setIsSessionPending(false);
+      }
     };
 
   // ========================================
@@ -1916,7 +2221,41 @@ function App() {
             "help" ? (
             <HelpPage />
           ) : (
-            <div className="dashboard-grid">
+            <div className="record-workspace">
+              <ConversationSessionPanel
+                session={
+                  conversationSession
+                }
+                currentSpeakerParticipantId={
+                  currentSpeakerParticipantId
+                }
+                hasCurrentUtterance={
+                  hasCurrentUtterance &&
+                  conversationSession != null
+                }
+                canFinalizeUtterance={
+                  canFinalizeCurrentUtterance
+                }
+                isBusy={
+                  isProcessing ||
+                  isRecording ||
+                  isSessionPending
+                }
+                onCreateSession={
+                  handleCreateConversationSession
+                }
+                onSelectSpeaker={
+                  handleSelectSpeaker
+                }
+                onFinalizeUtterance={
+                  handleFinalizeCurrentUtterance
+                }
+                onCloseSession={
+                  handleCloseConversationSession
+                }
+              />
+
+              <div className="dashboard-grid">
               {/* 왼쪽 */}
 
               <div className="dashboard-left-column">
@@ -1926,7 +2265,20 @@ function App() {
                   }
 
                   isProcessing={
-                    isProcessing
+                    isProcessing ||
+                    isSessionPending
+                  }
+
+                  canRecord={
+                    canStartNewUtterance
+                  }
+
+                  disabledReason={
+                    conversationSession == null
+                      ? "대화 설정을 먼저 완료해주세요."
+                      : hasCurrentUtterance
+                        ? "현재 발언을 확정한 뒤 다음 발언을 녹음할 수 있습니다."
+                        : "이번 발언의 화자를 선택해주세요."
                   }
 
                   elapsedTime={
@@ -2049,6 +2401,7 @@ function App() {
                   }
                 />
               </div>
+            </div>
             </div>
           )}
         </main>
@@ -2207,6 +2560,46 @@ function normalizeContextCandidates(
   );
 
   return result;
+}
+
+function areAllAmbiguitiesResolved(
+  contexts
+) {
+  if (!Array.isArray(contexts)) {
+    return false;
+  }
+
+  if (contexts.length === 0) {
+    return true;
+  }
+
+  const ambiguityIds = [
+    ...new Set(
+      contexts.map(
+        (context) =>
+          context.ambiguityId
+      )
+    ),
+  ];
+
+  if (
+    ambiguityIds.some(
+      (ambiguityId) =>
+        ambiguityId == null
+    )
+  ) {
+    return false;
+  }
+
+  return ambiguityIds.every(
+    (ambiguityId) =>
+      contexts.some(
+        (context) =>
+          context.ambiguityId ===
+            ambiguityId &&
+          context.resolved === true
+      )
+  );
 }
 
 export default App;

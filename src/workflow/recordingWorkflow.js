@@ -11,6 +11,8 @@ export const RecordingPhase =
       "REVIEWING_TRANSCRIPT",
     UPDATING_TRANSCRIPT:
       "UPDATING_TRANSCRIPT",
+    CONFIRMING_UTTERANCE:
+      "CONFIRMING_UTTERANCE",
     ANALYZING: "ANALYZING",
     COMPLETED: "COMPLETED",
     FAILED: "FAILED",
@@ -35,6 +37,8 @@ export const RecordingAction =
       "READY_FOR_REVIEW",
     START_TRANSCRIPT_UPDATE:
       "START_TRANSCRIPT_UPDATE",
+    START_CONFIRMING_UTTERANCE:
+      "START_CONFIRMING_UTTERANCE",
     START_ANALYSIS: "START_ANALYSIS",
     COMPLETE: "COMPLETE",
     FAIL: "FAIL",
@@ -138,6 +142,15 @@ export function recordingWorkflowReducer(
         mode: null,
       };
 
+    case RecordingAction.START_CONFIRMING_UTTERANCE:
+      return {
+        ...state,
+        phase:
+          RecordingPhase.CONFIRMING_UTTERANCE,
+        progress: 100,
+        mode: null,
+      };
+
     case RecordingAction.START_ANALYSIS:
       return {
         ...state,
@@ -194,6 +207,7 @@ export function isProcessingPhase(phase) {
     RecordingPhase.TRANSCRIBING,
     RecordingPhase.PREPARING_TRANSCRIPT,
     RecordingPhase.UPDATING_TRANSCRIPT,
+    RecordingPhase.CONFIRMING_UTTERANCE,
     RecordingPhase.ANALYZING,
   ].includes(phase);
 }
